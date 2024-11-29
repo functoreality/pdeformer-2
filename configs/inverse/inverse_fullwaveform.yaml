@@ -1,0 +1,88 @@
+model_type: pdeformer
+model:
+  graphormer:
+    num_node_type: 128
+    num_in_degree: 32
+    num_out_degree: 32
+    num_spatial: 16
+    num_encoder_layers: 12
+    embed_dim: 768
+    ffn_embed_dim: 1536
+    num_heads: 32
+    pre_layernorm: true
+  scalar_encoder:
+    dim_hidden: 256
+    num_layers: 3
+  function_encoder:
+    type: cnn2dv3
+    num_branches: 4
+    resolution: 128
+    conv2d_input_txyz: false
+    cnn_keep_nchw: true
+  multi_inr:
+    enable: false
+  inr:
+    type: poly_inr
+    num_layers: 12
+    dim_hidden: 768
+    poly_inr:
+      enable_affine: false
+      enable_shift: true
+      enable_scale: true
+      modify_he_init: false
+      affine_act_fn: identity
+      activation_fn: sin
+  hypernet:
+    dim_hidden: 512
+    num_layers: 2
+    shared: false
+  load_ckpt: path/to/your/downloaded/model-L.ckpt
+  # You can download from https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt
+data:
+  path: ../data_download  # or any path/to/your/data_download
+  pde_dag:
+    max_n_scalar_nodes: 96
+    max_n_function_nodes: 5
+    disconn_attn_bias: '-inf'
+inverse:
+  pde_type: wave
+  data_file: dedalus_v5.1_inv_Wave2D_inhom_cU1_k1e-02_4_num10_samples100_fwi_seed2
+  pde_cases: 10
+  num_samples_per_pde: 100
+  system_identification: false
+  observation:
+    ic_noise:
+      type: uniform
+      level: 0.01
+    noise:
+      type: uniform
+      level: 0.01
+    xyz_location:
+      type: random
+      num_pts: 128
+    t_location:
+      type: all_random
+      num_pts: 20
+  plot_num_per_cls: 1
+  loss:
+    type: RMSE
+    normalize: true
+    normalize_eps: 0.05
+    mixed:
+      weight: 0.3
+  func:
+    function_node_id: 2
+    function_regularize:
+      type: L2
+      weight: 0.005
+    epochs: 20000
+    learning_rate: 0.02
+    weight_decay: 0.0
+    lr_scheduler:
+      type: mstep
+      milestones:
+      - 0.6
+      - 1.0
+      lr_decay: 0.8
+    fwi: true
+record_dir: exp/inverse_fwi

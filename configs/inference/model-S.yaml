@@ -1,0 +1,10 @@
+base_config: configs/inference/model-L.yaml
+model:
+  graphormer:
+    num_encoder_layers: 9
+    embed_dim: 512
+    ffn_embed_dim: 1024
+  inr:
+    dim_hidden: 128
+  load_ckpt: path/to/your/downloaded/model-S.ckpt
+  # You can download from https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt

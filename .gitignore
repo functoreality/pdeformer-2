@@ -1,0 +1,17 @@
+**/__pycache__
+**/rank_0
+*.log
+exp*
+**/.ipynb_checkpoints
+data_download
+graphs
+test*
+rewritten_network
+log
+results
+train_debug.py
+profiler_data
+summary
+log_output
+rank_*
+*.ckpt

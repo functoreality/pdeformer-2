@@ -1,0 +1,6 @@
+base_config: configs/inference/model-L.yaml
+model:
+  inr:
+    dim_hidden: 256
+  load_ckpt: path/to/your/downloaded/model-M.ckpt
+  # You can download from https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt

@@ -1,0 +1,45 @@
+model_type: pdeformer
+model:
+  graphormer:
+    num_node_type: 128
+    num_in_degree: 32
+    num_out_degree: 32
+    num_spatial: 16
+    num_encoder_layers: 12
+    embed_dim: 768
+    ffn_embed_dim: 1536
+    num_heads: 32
+    pre_layernorm: True
+  scalar_encoder:
+    dim_hidden: 256
+    num_layers: 3
+  function_encoder:
+    type: cnn2dv3
+    num_branches: 4
+    resolution: 128
+    conv2d_input_txyz: False
+    cnn_keep_nchw: True
+  multi_inr:
+    enable: False
+  inr:
+    type: poly_inr
+    num_layers: 12
+    dim_hidden: 768
+    poly_inr:
+      enable_affine: False
+      enable_shift: True
+      enable_scale: True
+      modify_he_init: False
+      affine_act_fn: identity
+      activation_fn: sin
+  hypernet:
+    dim_hidden: 512
+    num_layers: 2
+    shared: False
+  load_ckpt: path/to/your/downloaded/model-L.ckpt
+  # You can download from https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt
+data:
+  pde_dag:
+    max_n_scalar_nodes: 80
+    max_n_function_nodes: 6
+    disconn_attn_bias: -inf

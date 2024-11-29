@@ -1,0 +1,13 @@
+base_config: configs/pretrain/model-L_small-data.yaml
+model:
+  graphormer:
+    num_encoder_layers: 9
+    embed_dim: 512
+    ffn_embed_dim: 1024
+  inr:
+    dim_hidden: 128
+train:
+  total_batch_size: 10
+eval:
+  total_batch_size: 3
+record_dir: "exp/pretrain/small-data/model-M"
