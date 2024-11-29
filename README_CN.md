@@ -23,12 +23,12 @@
 $$\mathcal{F}(u_1,u_2,\dots,c_1,c_2,\dots,s_1(r),s_2(r),\dots)=0\text{ in }\Omega,$$
 $$\mathcal{B}_i(u_1,u_2,\dots,c_{i1},c_{i2},\dots,s_{i1}(r),s_{i2}(r),\dots)=0\text{ on }\Gamma_i,$$
 
-其中 $r=(x,y)\in\Omega\subseteq[0,1]^2$ 是空间坐标，$c_1,c_2,\dots,c_{11},c_{12},\dots \in \mathbb{R}$ 是实值系数，$s_1(r),s_2(r)\dots,s_{11}(r),\dots$ 是标量函数（在方程中可作为初值、边值、系数场等），$u_1,u_2,\dots:[0,1]\times\Omega\to\R$ 是待求解物理场的各个分量。
+其中 $r=(x,y)\in\Omega\subseteq[0,1]^2$ 是空间坐标，$c_1,c_2,\dots,c_{11},c_{12},\dots \in \mathbb{R}$ 是实值系数，$s_1(r),s_2(r)\dots,s_{11}(r),\dots$ 是标量函数（在方程中可作为初值、边值、系数场等），$u_1,u_2,\dots:[0,1]\times\Omega\to\mathbb{R}$ 是待求解物理场的各个分量。
 多个边界条件分别由指标 $i=1,2,\dots$ 表示。
 在这里，我们假设算子 $\mathcal{F,B}_1,\mathcal{B}_2\dots$ 具有符号表达式，其中可能涉及微分和代数运算。
 PDEformer-2 的目标是构建一个方程解的代理模型，形式为
 $$(\Omega,\mathcal{F},c_1,\dots,s_1(r),\dots,\Gamma_1,\mathcal{B}_1,c_{11},\dots,s_{11}(r),\dots)\mapsto(u_1,u_2,\dots),$$
-它将 PDE 的定义域与边界位置 $\Omega,\Gamma_1,\Gamma_2,\dots$，符号形式 $\mathcal{F,B}_1,\mathcal{B}_2\dots$ 及其中涉及的数值信息 $c_1,\dots,c_{11},\dots,s_1(r),\dots,s_{11}(r),\dots$ 作为输入，输出相应方程的预测解 $u_1,u_2,\dots:[0,1]\times\Omega\to\R$。
+它将 PDE 的定义域与边界位置 $\Omega,\Gamma_1,\Gamma_2,\dots$，符号形式 $\mathcal{F,B}_1,\mathcal{B}_2\dots$ 及其中涉及的数值信息 $c_1,\dots,c_{11},\dots,s_1(r),\dots,s_{11}(r),\dots$ 作为输入，输出相应方程的预测解 $u_1,u_2,\dots:[0,1]\times\Omega\to\mathbb{R}$。
 以 $\Omega=[0,1]^2$ 上具有周期边界条件的（单分量）对流方程 $u_t+(cu)_x+u_y=0$，$u(0,r)=g(r)$ 为例：
 
 ![](docs/images/PDEformerV2Arch.png)
