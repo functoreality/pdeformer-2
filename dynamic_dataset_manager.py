@@ -492,8 +492,7 @@ def main() -> None:
     # load config
     parser = argparse.ArgumentParser(
         description="Manager of the dynamic training dataset.")
-    parser.add_argument("--config_file_path", "-c", type=str,
-                        default="test_config.yaml",
+    parser.add_argument("--config_file_path", "-c", type=str, required=True,
                         help="Path of the configuration YAML file.")
     args = parser.parse_args()
     config, _ = load_config(args.config_file_path)

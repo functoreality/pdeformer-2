@@ -9,8 +9,8 @@ from src.utils.load_yaml import load_config
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess PDEformer data.")
-    parser.add_argument("--config_file_path", "-c", type=str,
-                        default="test_config.yaml")
+    parser.add_argument("--config_file_path", "-c", type=str, required=True,
+                        help="Path of the configuration YAML file.")
     args = parser.parse_args()
     config, _ = load_config(args.config_file_path)
     preprocess_dag_info(config)

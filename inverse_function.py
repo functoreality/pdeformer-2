@@ -39,8 +39,8 @@ def parse_args():
                         help="ID of the target device")
     parser.add_argument('--distributed', action='store_true',
                         help='enable distributed training (data parallel)')
-    parser.add_argument("--config_file_path", type=str,
-                        default="configs/config_yzh_grammar.yaml")
+    parser.add_argument("--config_file_path", "-c", type=str, required=True,
+                        help="Path of the configuration YAML file.")
     return parser.parse_args()
 
 
@@ -305,11 +305,9 @@ def inverse(model: nn.Cell) -> None:
         recovered_lst = []
         for coef in initial_lst:
             if coef is not None:
-                recovered = initializer(One(),
-                                    [1, 1, invp.num_points_function, 1],
-                                    mstype.float32)
+                recovered = ops.ones((1, 1, invp.num_points_function, 1))
                 invp.recovered.set_data(coef * recovered)
-                num_init = coef/0.4
+                num_init = int(coef/0.4)
             else:
                 num_init = 1
             print_interval = math.ceil(config.inverse.func.epochs / 100)
@@ -324,7 +322,7 @@ def inverse(model: nn.Cell) -> None:
                         nrmse_all.append(nrmse)
                     else:
                         nrmse = invp.compare(enable_plot=False)
-                    record.print(f"PDE {pde_idx},initialize{num_init} epoch {epoch}: loss {loss:>10f} nrmse {nrmse:>7f}")
+                    record.print(f"PDE {pde_idx},initialize {num_init} epoch {epoch}: loss {loss:>10f} nrmse {nrmse:>7f}")
                     record.add_scalar(f"train_pde-{pde_idx}/loss", loss, epoch)
                     record.add_scalar(f"train_pde-{pde_idx}/nrmse", nrmse, epoch)
                     if loss > 10**5 or math.isnan(loss) or math.isinf(loss):

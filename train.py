@@ -39,8 +39,8 @@ def parse_args():
                         help='unenable distributed training (data parallel)')
     parser.add_argument('--no_data_sink', action='store_true',
                         help='unenable data sink during training')
-    parser.add_argument("--config_file_path", "-c", type=str,
-                        default="configs/config_base.yaml")
+    parser.add_argument("--config_file_path", "-c", type=str, required=True,
+                        help="Path of the configuration YAML file.")
 
     input_args = parser.parse_args()
     input_args.distributed = not input_args.no_distributed

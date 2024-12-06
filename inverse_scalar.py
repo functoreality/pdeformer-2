@@ -34,8 +34,8 @@ def parse_args():
                         help="The target device to run, support 'Ascend', 'GPU', 'CPU'")
     parser.add_argument("--device_id", type=int, default=0,
                         help="ID of the target device")
-    parser.add_argument("--config_file_path", type=str,
-                        default="configs/config_yzh_grammar.yaml")
+    parser.add_argument("--config_file_path", "-c", type=str, required=True,
+                        help="Path of the configuration YAML file.")
     return parser.parse_args()
 
 
