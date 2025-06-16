@@ -59,11 +59,11 @@ $c_i(r)$ to meet the initial condition.
 
 The remaining settings are the same as the DCR dataset.
 
-### Multi-Component DCR (MCompn2D, mcdcr)
+### Multi-Variable DCR (MCompn2D, mvdcr)
 
 The PDE takes the form
 
-$$\partial_tu_i + L_iu_i + f_0(u)_i + s_i(r) + \partial_xf_1(u)_i + \partial_yf_2(u)_i = 0,$$
+$$\partial_tu_i + L_iu_i + \boldsymbol{f}_0(u)_i + s_i(r) + \partial_x\boldsymbol{f}_1(u)_i + \partial_y\boldsymbol{f}_2(u)_i = 0,$$
 
 $u_i(0,r)=g_i(r)$, $t\in[0,1]$, $r=(x,y)\in[0,1]^2$,
 $0 \le i,j,k \le d_u-1$, $j \le k$.
@@ -71,7 +71,7 @@ Periodic boundary conditions are employed for simplicity.
 
 We take
 
-$$f_l(u)_i = \sum_ja_{lij}u_j + \sum_{j,k}b_{lijk}u_ju_k$$
+$$\boldsymbol{f}_l(u)_i = \sum_ja_{lij}u_j + \sum_{j,k}b_{lijk}u_ju_k$$
 
 for $l=0,1,2$. The coefficients $a,b$ are sparse arrays, with a total of at
 most $3d_u$ non-zero entries.
@@ -83,7 +83,7 @@ becomes Maxwell's equations.
 
 ### Divergence-Constrained DCR (DivConstrDCR2D, dcdcr)
 
-$$\partial_tu_i + L_iu_i + f_0(u)_i + s_i(r) + \partial_xf_1(u)_i + \partial_yf_2(u)_i + (-c_i)p + (\nabla p)_i = 0,$$
+$$\partial_tu_i + L_iu_i + \boldsymbol{f}_0(u)_i + s_i(r) + \partial_x\boldsymbol{f}_1(u)_i + \partial_y\boldsymbol{f}_2(u)_i + (-c_i)p + (\nabla p)_i = 0,$$
 
 in which $i=0,1$, with additional divergence constraint
 $\partial_xu_0 + \partial_yu_1 + c_0u_0 + c_1u_1 + c_2 = 0$.
@@ -92,10 +92,10 @@ The initial condition of some datasets comply with this constraint
 and are generated as Gaussian random fields (GRFs) for the other datasets
 (arbitrary initial condition, icA).
 
-Differences from MC-DCR equation:
+Differences from MV-DCR equation:
 
-* The number of components is fixed to $d_u=2$.
-* The additional pressure component $p$ along with the divergence constraint equation are added.
+* The number of DCR variables is fixed to $d_u=2$.
+* The additional pressure variable $p$ along with the divergence constraint equation are added.
 * For part of the dataset, the initial condition are from another (non-GRF) distribution.
 
 We note that the two-dimensional incompressible Navier-Stokes (NS) equation
@@ -107,17 +107,17 @@ $$\partial_tu_0-\nu\Delta u_0+\partial_x(u_0^2)+\partial_y(u_0u_1)+\partial_xp=0
 $$\partial_tu_1-\nu\Delta u_1+\partial_x(u_0u_1)+\partial_y(u_1^2)+\partial_yp=0,$$
 $$\partial_xu_0+\partial_yu_1=0.$$
 
-### Multi-Component Wave, (MCWave2D, mcwave)
+### Multi-Variable Wave, (MCWave2D, mvwave)
 
-$$\partial_{tt}u_i + \mu_i(r)\partial_tu_i + L_iu_i + f_0(u)_i + s_i(r) + \partial_xf_1(u)_i + \partial_yf_2(u)_i = 0,$$
+$$\partial_{tt}u_i + \mu_i(r)\partial_tu_i + L_iu_i + \boldsymbol{f}_0(u)_i + s_i(r) + \partial_x\boldsymbol{f}_1(u)_i + \partial_y\boldsymbol{f}_2(u)_i = 0,$$
 
-and the rest is the same as MC-DCR.
+and the rest is the same as MV-DCR.
 
 ### Divergence-Constrained Wave (DivConstrWave2D, dcwave)
 
-$$\partial_{tt}u_i + \mu_i(r)\partial_tu_i + L_iu_i + f_0(u)_i + s_i(r) + \partial_xf_1(u)_i + \partial_yf_2(u)_i + (-c_i)p + (\nabla p)_i = 0,$$
+$$\partial_{tt}u_i + \mu_i(r)\partial_tu_i + L_iu_i + \boldsymbol{f}_0(u)_i + s_i(r) + \partial_x\boldsymbol{f}_1(u)_i + \partial_y\boldsymbol{f}_2(u)_i + (-c_i)p + (\nabla p)_i = 0,$$
 
-and the rest is the same as MC-Wave.
+and the rest is the same as MV-Wave.
 
 ### Shallow-Water Equation (SWE2D, swe)
 
@@ -130,8 +130,8 @@ $$v_t + L_vv + f_v + s_v(r) + uv_x + vv_y + g_2h_y = 0,$$
 $\eta(0,r)=g_\eta(r)$ for $\eta\in\{h,u,v\}$, $t\in[0,1]$,
 $r=(x,y)\in[0,1]^2$.
 Periodic boundary conditions are employed for simplicity.
-We take $[f_h;f_u;f_v] = f_0([h;u;v])$ with $f_0$ being the same as that of
-multi-component DCR/Wave equations.
+We take $[f_h;f_u;f_v] = \boldsymbol{f}_0([h;u;v])$ with $\boldsymbol{f}_0$ being the same as that of
+multi-variable DCR/Wave equations.
 The initial water height $g_h(r)$ is taken to be a positive random field.
 The base height of the water $H(r)$ is non-negative, and taken to be zero with certain probability.
 

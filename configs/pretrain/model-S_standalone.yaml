@@ -1,5 +1,5 @@
 base_config: configs/pretrain/model-L_small-data.yaml
-model:
+model:  # PDEformer-2-small, not included in the paper
   graphormer:
     num_encoder_layers: 9
     embed_dim: 512
@@ -10,4 +10,4 @@ train:
   total_batch_size: 10
 eval:
   total_batch_size: 3
-record_dir: "exp/pretrain/small-data/model-M"
+record_dir: "exp/pretrain/small-data/model-S"

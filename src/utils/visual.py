@@ -668,14 +668,17 @@ def video_2d(label: NDArray[float],
              save_dir: Optional[str] = None) -> None:
     r"""Generate a video for 2D predicted solutions."""
     # arrays to plot
-    # shape of 'label' and 'predict': [T, H, W, C]
-    error = np.abs(label - predict)  # [T, H, W, C]
-    n_t, _, _, n_channel = label.shape
+    # shape of 'label', 'predict' and 'error': [T, H, W, C] or [T, N, C]
+    error = np.abs(label - predict)
+    n_t = label.shape[0]
+    n_channel = label.shape[-1]
     if n_channel > 5:
         raise ValueError(f"Too many channels ({n_channel})!")
 
     # coordinates, shape [H, W, 2]
     if coords is None:
+        if label.ndim != 4:
+            raise ValueError
         x_coord = np.linspace(0, 1, label.shape[1] + 1)[:-1]
         y_coord = np.linspace(0, 1, label.shape[2] + 1)[:-1]
         coords = np.stack(np.meshgrid(x_coord, y_coord, indexing="ij"))
@@ -698,9 +701,14 @@ def video_2d(label: NDArray[float],
                 vmin = 0.
 
             ax_ = fig.add_subplot(gs_[i, j])
-            img_list[i][j] = ax_.pcolormesh(
-                coords[..., 0], coords[..., 1], data_2d[..., i],
-                vmin=vmin, vmax=vmax, cmap="turbo")
+            if data_2d.ndim == 3:  # [H, W, C]
+                img_list[i][j] = ax_.pcolormesh(
+                    coords[..., 0], coords[..., 1], data_2d[..., i],
+                    vmin=vmin, vmax=vmax, cmap="turbo")
+            elif data_2d.ndim == 2:  # [N, C]
+                img_list[i][j] = ax_.scatter(
+                    coords[..., 0], coords[..., 1], s=0.5, c=data_2d[..., i],
+                    vmin=vmin, vmax=vmax, cmap="turbo")
 
             ax_.set_xlim(0, 1)
             ax_.set_ylim(0, 1)

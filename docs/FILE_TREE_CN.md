@@ -14,8 +14,15 @@
 │  train.py                                      # 模型训练代码
 ├─configs                                        # 配置文件目录
 │   │  full_config_example.yaml                  # 完整配置文件示例，包含了所有可能的选项
-│   ├─finetune                                   # 微调模型训练配置
+│   ├─baseline                                   # 基线模型训练配置
+│   │      ins-pipe_fno2d_20.yaml                # FNO2D 在 INS-Pipe 数据集上用 20 样本训练
+│   │      ins-tracer_cnn-deeponet_900.yaml      # DeepONet (CNN) 在 INS-Tracer 数据集上用 900 样本训练
+│   │      sine-gordon_unet2d_1.yaml             # U-Net2D 在 Sine-Gordon 数据集上用 1 样本训练
+│   │      wave-c-sines_deeponet_4.yaml          # DeepONet (MLP) 在 Wave-C-Sines 数据集上用 4 样本训练
+│   │      wave-gauss_fno3d_80.yaml              # FNO3D 在 Wave-Gauss 数据集上用 80 样本训练
+│   ├─finetune                                   # 模型微调配置
 │   │      pdebench-swe-rdb_model-M.yaml         # 加载预训练的 M 规模模型在 PDEBench 浅水波（径向溃坝）数据上微调
+│   │      ins-tracer_model-M.yaml               # 加载预训练的 M 规模模型在 INS-Tracer 数据上微调
 │   ├─inference                                  # 加载预训练的模型参数用于推理
 │   │      model-L.yaml                          # 加载预训练的 L 规模模型用于推理
 │   │      model-M.yaml                          # 加载预训练的 M 规模模型用于推理
@@ -40,6 +47,7 @@
 │      inverse_fullwaveform.sh                   # 反演波方程波速场
 │      inverse_function.sh                       # 反演方程源项场
 │      inverse_scalar.sh                         # 反演方程标量系数
+│      run_ui.sh                                 # 启动 GUI 演示
 │      train_distributed.sh                      # 多卡分布式训练
 │      train_dynamic_dataset.sh                  # 启用数据集动态缓冲区的大规模训练
 │      train_standalone.sh                       # 单卡训练
@@ -47,6 +55,8 @@
     │  inference.py                              # 用于针对自定义 PDE 生成预测解
     ├─cell                                       # 模型架构相关的代码
     │  │  basic_block.py                         # 基本单元模块
+    │  │  env.py                                 # 不宜放在 config.yaml 中的一系列配置
+    │  │  lora.py                                # LoRA 微调相关模块
     │  │  wrapper.py                             # 封装后的模型选择接口
     │  ├─baseline                                # Baseline 模型架构
     │  │      activation.py                      # FNO 可用的多种激活函数
@@ -54,6 +64,7 @@
     │  │      deeponet.py                        # DeepONet 网络架构
     │  │      dft.py                             # FNO 涉及的离散傅里叶变换模块
     │  │      fno.py                             # FNO 网络架构
+    │  │      unet2d.py                          # U-Net 网络架构
     │  └─pdeformer                               # PDEFormer 模型架构
     │      │  function_encoder.py                # 函数编码器模块
     │      │  pdeformer.py                       # PDEFormer 网络架构
@@ -74,19 +85,32 @@
     ├─data                                       # 数据加载代码
     │  │   env.py                                # 已稳定、不宜放在 config.yaml 中的一系列配置，如整形、浮点型数据精度，以及各种常量、开关
     │  │   load_inverse_data.py                  # 反问题数据加载
-    │  │   load_single_pde.py                    # 只包含单一方程形式的数据集加载（正问题）
     │  │   pde_dag.py                            # 根据 PDE 形式生成有向无环图及相应图数据的通用模块
     │  │   utils_dataload.py                     # 不同数据集加载的通用模块
     │  │   wrapper.py                            # 不同数据集加载的封装函数
-    │  └─multi_pde                               # 同时包含多种方程形式的数据集加载（正问题）
-    │         boundary_v2_from_dict.py           # 边界条件的计算图 DAG 生成，仅用于 GUI 套件的接口
-    │         boundary_v2.py                     # 边界条件的计算图 DAG 生成，当前使用版本
-    │         boundary.py                        # 边界条件的计算图 DAG 生成，已停用的历史版本
-    │         dataloader.py                      # 数据加载相关操作，包括训练测试数据区分、batch、动态缓冲区数据集读取
-    │         datasets.py                        # 针对各种 PDE 形式大类的数据文件读取
-    │         pde_types.py                       # 针对各种 PDE 形式大类生成计算图 DAG 与 LaTeX 表达式
-    │         terms_from_dict.py                 # PDE 中各项的计算图 DAG 生成，仅用于 GUI 套件的接口
-    │         terms.py                           # PDE 中各项的计算图 DAG 生成
+    │  ├─multi_pde                               # 同时包含多种方程形式的数据集加载（正问题）
+    │  │      boundary_v2_from_dict.py           # 边界条件的计算图 DAG 生成，仅用于 GUI 套件的接口
+    │  │      boundary_v2.py                     # 边界条件的计算图 DAG 生成，当前使用版本
+    │  │      boundary.py                        # 边界条件的计算图 DAG 生成，已停用的历史版本
+    │  │      dataloader.py                      # 数据加载相关操作，包括训练测试数据区分、batch、动态缓冲区数据集读取
+    │  │      datasets.py                        # 针对各种 PDE 形式大类的数据文件读取
+    │  │      pde_types.py                       # 针对各种 PDE 形式大类生成计算图 DAG 与 LaTeX 表达式
+    │  │      terms_from_dict.py                 # PDE 中各项的计算图 DAG 生成，仅用于 GUI 套件的接口
+    │  │      terms.py                           # PDE 中各项的计算图 DAG 生成
+    │  └─single_pde                              # 只包含单一方程形式的数据集加载（正问题）
+    │         basics.py                          # 基础通用模块
+    │         dataloader.py                      # 数据加载相关操作，针对不同网络使用不同数据格式
+    │         dataset_cart1.py                   # Cartesian 网格数据集 1
+    │         dataset_cart2.py                   # Cartesian 网格数据集 2
+    │         dataset_scat1.py                   # 散点网格数据集
+    ├─ui                                         # GUI 相关模块
+    │      basics.py                             # 基础通用模块
+    │      database.py                           # 针对各种方程项的 database 组件
+    │      dcr.py                                # DCR 方程 GUI 主程序
+    │      elements.py                           # GUI 所用到的部分组件
+    │      pde_types.py                          # 针对各种 PDE 形式大类生成计算图 DAG 与 LaTeX 表达式
+    │      utils.py                              # GUI 所用到的部分工具函数
+    │      widgets.py                            # 针对各种方程项的 widget 组件
     └─utils                                      # 训练与结果记录需要用到的工具函数
            load_yaml.py                          # 读取 YAML 配置文件
            record.py                             # 记录实验结果

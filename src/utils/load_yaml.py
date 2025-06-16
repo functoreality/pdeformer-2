@@ -1,9 +1,9 @@
 r"""This module provides a function to load a configuration file."""
 from typing import Tuple
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 
-def load_config(file_path: str) -> Tuple[dict, str]:
+def load_config(file_path: str) -> DictConfig:
     r"""
     Load a configuration file.
 
@@ -25,6 +25,4 @@ def load_config(file_path: str) -> Tuple[dict, str]:
         config = OmegaConf.load(base_config_path)
         config.merge_with(config_custom)
 
-    config_str = OmegaConf.to_yaml(config)
-
-    return config, config_str
+    return config

@@ -1,0 +1,16 @@
+# train with 8 NPUs
+base_config: configs/baseline/ins-pipe_fno2d_20.yaml
+model_type: fno3d  # {pdeformer, deeponet, cnn_deeponet, unet2d, fno2d, fno3d}
+fno3d:
+  modes: [6, 12, 12]  # Wave-Gauss has a smaller resolution along t-axis, and cannot keep 12 modes
+data:
+  num_samples_per_file:
+    train: 80
+  single_pde:
+    param_name: pdegym_wave
+    train: [gauss-norm]
+train:
+  total_batch_size: 16
+eval:
+  total_batch_size: 16
+record_dir: exp/benchmark_data/wave_gauss/train-80/fno3d

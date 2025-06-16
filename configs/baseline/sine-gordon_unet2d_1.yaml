@@ -1,0 +1,10 @@
+# train with a single NPU
+base_config: configs/baseline/ins-pipe_fno2d_20.yaml
+model_type: unet2d  # {pdeformer, deeponet, cnn_deeponet, unet2d, fno2d, fno3d}
+data:
+  num_samples_per_file:
+    train: 1
+  single_pde:
+    param_name: sinegordon_fname
+    train: [dedalus_v5.1_Baseline2D_SineGordon_k1e-02_4_seed0]
+record_dir: exp/benchmark_data/sine_gordon/train-1/unet2d

@@ -127,9 +127,9 @@ class DataPSO:
         # [num_scalar] -> [n_graph, num_scalar, 1]
         coef_with_pad = np.repeat(coef_with_pad[np.newaxis, :, np.newaxis],
                                   repeats=self.n_graph, axis=0)
-        # [n_graph, num_scalar, 1]
+        # Shape is [n_graph, num_scalar, 1].
         coef_with_pad = Tensor(coef_with_pad, dtype=mstype.float32)
-        # [n_graph, num_scalar, 1]
+        # Shape is [n_graph, num_scalar, 1].
         node_scalar = ops.select(self.cond, coef_with_pad, node_scalar)
 
         if not full_coord:
@@ -502,11 +502,10 @@ if __name__ == "__main__":
     compute_type = mstype.float16 if use_ascend else mstype.float32
 
     # load config file
-    config, config_str = load_config(args.config_file_path)
+    config = load_config(args.config_file_path)
 
     # record
-    record = init_record(use_ascend, 0, args, config,
-                         config_str, inverse_problem=True)
+    record = init_record(0, args, config, inverse_problem=True)
 
     # model
     model_ = get_model(config, record, compute_type)

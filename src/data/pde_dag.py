@@ -5,6 +5,7 @@ constructs a directed acyclic graph (DAG).
 """
 from typing import Tuple, List, Optional, Union
 from collections import namedtuple
+from warnings import warn
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,6 +17,7 @@ from .env import USE_GLOBAL_NODE, int_dtype, float_dtype
 
 # 'uf': unknown field; 'ic': initial condition; 'cf': coefficient field;
 # 'bv': boundary value (deprecated); 'sdf': signed distance function;
+# 'vc': varying coefficient; 'at': arbitrary transform;
 # These node types are not used in the current version: 'eval', 'dn', 'avg_int'
 VAR_NODE_TYPES = ['uf']
 COEF_NODE_TYPES = ['coef']
@@ -23,7 +25,7 @@ FUNCTION_NODE_TYPES = ['ic', 'cf', 'bv', 'sdf', 'eval']
 OPERATOR_NODE_TYPES = ['add', 'mul', 'eq0',
                        'dt', 'dx', 'dy', 'dz', 'dn', 'avg_int',
                        'neg', 'square', 'exp10', 'log10', 'sin', 'cos']
-RESERVED_NODE_TYPES = [f'Reserved{i}' for i in range(16)]
+RESERVED_NODE_TYPES = ['vc', 'at'] + [f'Reserved{i}' for i in range(14)]
 FUNCTION_BRANCH_NODE_TYPES = [f'Branch{i}' for i in range(16)]
 INR_NODE_TYPES = [f'Mod{i}' for i in range(32)]
 # During batch training, we may need to add 'pad' nodes (with index 0) to
@@ -267,14 +269,14 @@ class PDEAsDAG:
                     edge_list.append((node_new, node))
                     # if j > 0:  # ModSeq
                     #     edge_list.append((node_new, f'{node}:Mod{j - 1}'))
-            elif type_ in FUNCTION_NODE_TYPES:
+            elif type_ in FUNCTION_NODE_TYPES + ['vc']:
                 n_functions += 1
                 for j in range(function_num_branches):
                     node_new = f'{node}:Branch{j}'
                     function_branch_node_list.append((node_new, f'Branch{j}'))
                     if type_ in ['ic', 'bv']:
                         edge_list.append((node, node_new))
-                    elif type_ in ['cf', 'sdf']:
+                    elif type_ in ['cf', 'sdf', 'vc']:
                         edge_list.append((node_new, node))
                     else:
                         raise NotImplementedError
@@ -600,7 +602,7 @@ class PDENodesCollector:
         r"""Specify a new unknown field variable."""
         if domain is None:
             return self._add_node('uf')
-        return self._add_node('uf', predecessors=[domain.name])
+        return self._add_node('uf', predecessors=[domain])
 
     def new_coef(self, value: float) -> PDENode:
         r"""Specify a new PDE coefficient."""
@@ -613,9 +615,19 @@ class PDENodesCollector:
                        x: Union[float, NDArray[float]] = -1.,
                        y: Union[float, NDArray[float]] = -1.,
                        z: Union[float, NDArray[float]] = -1.) -> PDENode:
-        r"""Specify a new non-constant PDE coefficient."""
+        r"""Specify a new PDE coefficient with spatial dependency."""
         self._add_function(field_values, t=t, x=x, y=y, z=z)
         return self._add_node('cf')
+
+    def new_varying_coef(self, coef_values: NDArray[float]) -> PDENode:
+        r"""Specify a new PDE coefficient with temporal dependency."""
+        if coef_values.shape != (128,):
+            raise ValueError("The shape of the varying coefficient is expected"
+                             f" to be (128,), but got {coef_values.shape}.")
+        # [128] -> [128, 1] -> [128, 128]
+        coef_values = np.repeat(coef_values[:, np.newaxis], 128, axis=-1)
+        self._add_function(coef_values)
+        return self._add_node('vc')
 
     def set_ic(self,
                src_node: PDENode,
@@ -626,7 +638,7 @@ class PDENodesCollector:
                z: Union[float, NDArray[float]] = -1.) -> None:
         r"""Specify initial condition."""
         self._add_function(field_values, t=0., x=x, y=y, z=z)
-        self._add_node('ic', predecessors=[src_node.name])
+        self._add_node('ic', predecessors=[src_node])
 
     def set_bv(self,
                src_node: PDENode,
@@ -641,10 +653,11 @@ class PDENodesCollector:
         Specify boundary values. The mathematical meaning is similar to
         'bc_sum_eq0', but the resulting DAG has a bit more connectivity.
         """
+        warn("Method 'set_bv' is deprecated in favor of 'bc_sum_eq0'.")
         if isinstance(boundary_sdf, np.ndarray):
             boundary_sdf = self.new_domain(boundary_sdf, t=t, x=x, y=y, z=z)
         self._add_function(field_values, t=t, x=x, y=y, z=z)
-        self._add_node('bv', predecessors=[src_node.name, boundary_sdf.name])
+        self._add_node('bv', predecessors=[src_node, boundary_sdf])
 
     def dt(self, src_node: PDENodeType) -> PDENodeType:
         r"""Create a new node that represents the temporal derivative of the source node."""
@@ -712,6 +725,69 @@ class PDENodesCollector:
         r"""Create a new node that represents the logarithm of the source node."""
         return self._unary(src_node, 'log10')
 
+    def unknown_func(self, *src_nodes, squeeze: bool = True
+                     ) -> Union[PDENode, List[PDENode]]:
+        r"""
+        An arbitrary function that is used to represent unknown terms in a PDE.
+        This should be useful when we want to fine-tune a model using observed
+        data, with the underlying physical mechanism is not completely known to
+        us. We use these terms to inform the model of such unknown mechanisms.
+
+        Mathematically, we assume this function has `n` input values and `n`
+        output values, and is NOT permutation equivariant.
+        If less output values are used, just ignore the extra outputs (i.e.
+        extra entries of the returned node tuple).
+        If more output values are needed, please augment the input values with
+        extra input values (i.e.  extra nodes of the DAG).
+
+        A total of `n` nodes will be created to represent the output values.
+
+        Examples:
+        ---------
+        >>> u1, u2, u3 = pde.new_uf(), pde.new_uf(), pde.new_uf()
+        >>> unknown_term = pde.unknown_func(u1)  # single argument
+        >>> f1, f2 = pde.unknown_func([u1, u2])  # arguments in list
+        >>> g1, g2, _ = pde.unknown_func(u1, u2, u3)  # seperate arguments
+        >>> h1, h2, h3 = pde.unknown_func(u1, u2, 1.)  # augmented argument
+        >>> (unknown_term2,) = pde.unknown_func(u2, squeeze=False)
+
+        If more than one such unknown function is envolved in the same PDE, and
+        they share the same number of dimension `n`, we strongly recommend
+        using different scalars as the augmented variable in each time it is
+        used. Otherwise, the computational graph could be permutation
+        equivariant, and the model cannot distinguish these unknown functions.
+
+        For example, if we want $f(u_1)$ and $f(u_2)$ involving the same
+        function:
+            >>> fu1 = pde.unknown_func(u1)
+            >>> fu2 = pde.unknown_func(u2)
+
+        If we want instead $f_1(u_1)$ and $f_2(u_2)$ involving different
+        functions:
+            >>> f1u1, _ = pde.unknown_func(u1, 0)
+            >>> f2u2, _ = pde.unknown_func(u2, 1)
+
+        With more variables:
+            >>> fu1u2, _, _ = pde.unknown_func(u1, u2, 0)
+            >>> gu2u3, _, _ = pde.unknown_func(u2, u3, 1)
+            >>> hu3u1, _, _ = pde.unknown_func(u3, u1, -1)
+        """
+        src_nodes = self._filter_src_nodes(src_nodes)  # List[PDENode]
+        n_nodes = len(src_nodes)
+        if n_nodes == 0:
+            raise RuntimeError(
+                "The unknown function should have at least one input value!")
+        prev_node = self._add_node('at', predecessors=src_nodes)
+        if n_nodes == 1 and squeeze:
+            # equivalent to self._unary(src_nodes[0], 'at')
+            return prev_node
+        out_nodes = [prev_node]
+        for i in range(1, n_nodes):
+            prev_node = self._add_node(
+                'at', predecessors=[prev_node] + src_nodes[i:])
+            out_nodes.append(prev_node)
+        return out_nodes
+
     def sum(self, *src_nodes) -> PDENodeType:
         r"""
         Create a new node that represents the summation of the existing source
@@ -741,8 +817,7 @@ class PDENodesCollector:
         of the interior PDE without introducing a new type of node ('bv').
         """
         sum_node = self._multi_predecessor('add', src_nodes, ignore_node=0.)
-        return self._add_node(
-            'eq0', predecessors=[sum_node.name, boundary_sdf.name])
+        return self._add_node('eq0', predecessors=[sum_node, boundary_sdf])
 
     def _add_node(self,
                   type_: str,
@@ -755,7 +830,8 @@ class PDENodesCollector:
         if predecessors is None:
             self.node_list.append((name, type_))
         else:
-            self.node_list.append((name, type_, *predecessors))
+            pred_names = [node.name for node in predecessors]
+            self.node_list.append((name, type_, *pred_names))
         if not np.isscalar(scalar):
             raise ValueError(f"PDE node receives non-scalar value {scalar}.")
         self.node_scalar.append(scalar)
@@ -786,7 +862,28 @@ class PDENodesCollector:
                 " creating a new node in the computational graph.")
         if src_node is NULL_NODE or np.isscalar(src_node):
             return NULL_NODE
-        return self._add_node(node_type, predecessors=[src_node.name])
+        return self._add_node(node_type, predecessors=[src_node])
+
+    def _filter_src_nodes(self,
+                          src_nodes: Tuple,
+                          ignore_node: PDENodeType = NULL_NODE,
+                          ) -> List[PDENodeType]:
+        r"""Filter `src_nodes` in preparation for other utilities."""
+        # ([node1, node2, ..], ) -> [node1, node2, ..]
+        if len(src_nodes) == 1 and isinstance(src_nodes[0], (list, tuple)):
+            src_nodes, = src_nodes
+        # remove NULL_NODE or ignored entries
+        src_nodes = [node for node in src_nodes
+                     if node not in [NULL_NODE, ignore_node]]
+        # type check; convert number entries into 'coef' nodes in the DAG
+        for i, node in enumerate(src_nodes):
+            if np.isscalar(node):
+                src_nodes[i] = self.new_coef(node)
+            elif not isinstance(node, PDENode):
+                raise ValueError("Nodes involved in sum/prod should have type"
+                                 + " {PDENode, float, int, NoneType}, but got"
+                                 + f" {type(node)}")
+        return src_nodes
 
     def _multi_predecessor(self,
                            node_type: str,
@@ -803,27 +900,13 @@ class PDENodesCollector:
         Output:
             out_node (PDENodeType): The newly created node.
         """
-        # ([node1, node2, ..], ) -> [node1, node2, ..]
-        if len(src_nodes) == 1 and isinstance(src_nodes[0], (list, tuple)):
-            src_nodes, = src_nodes
-        # remove NULL_NODE or ignored entries
-        src_nodes = [node for node in src_nodes
-                     if node not in [NULL_NODE, ignore_node]]
-        # type check; convert number entries into 'coef' nodes in the DAG
-        for i, node in enumerate(src_nodes):
-            if np.isscalar(node):
-                src_nodes[i] = self.new_coef(node)
-            elif not isinstance(node, PDENode):
-                raise ValueError("Nodes involved in sum/prod should have type"
-                                 + " {PDENode, float, int, NoneType}, but got"
-                                 + f" {type(node)}")
-        if len(src_nodes) == 0:  # pylint: disable=C1801
+        src_nodes = self._filter_src_nodes(src_nodes, ignore_node)
+        n_nodes = len(src_nodes)
+        if n_nodes == 0:
             return NULL_NODE
-        if len(src_nodes) == 1:
+        if n_nodes == 1:
             return src_nodes[0]  # single predecessor, no new node to create
-        src_node_names = [node.name for node in src_nodes]
-
-        return self._add_node(node_type, predecessors=src_node_names)
+        return self._add_node(node_type, predecessors=src_nodes)
 
 
 def merge_extended_func_soft(func_list: List[ExtendedFunc]) -> ExtendedFunc:

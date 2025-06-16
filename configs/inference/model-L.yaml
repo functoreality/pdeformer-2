@@ -1,3 +1,4 @@
+# configuration file for PDEformer-2-base
 model_type: pdeformer
 model:
   graphormer:

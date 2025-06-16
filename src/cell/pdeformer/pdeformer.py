@@ -7,8 +7,7 @@ from .inr_with_hypernet import get_inr_with_hypernet
 from .graphormer.graphormer_encoder import GraphormerEncoder
 from ..basic_block import MLP
 from .function_encoder import get_function_encoder
-
-SPACE_DIM = 3
+from ..env import SPACE_DIM
 
 
 class PDEEncoder(nn.Cell):

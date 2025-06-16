@@ -1,3 +1,4 @@
+# configuration file for PDEformer-2-fast
 base_config: configs/inference/model-L.yaml
 model:
   inr:

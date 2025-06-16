@@ -54,7 +54,7 @@ def sample_grf(batch_size: int = 1,
                sigma: float = 50.) -> NDArray[float]:
     r"""
     Sample from a Gaussian Random Field (GRF) given as
-    $X ~ N(\mu, \sigma (-\Delta + \tau^2 I)^{-\alpha})$
+    $X ~ N(\mu, \sigma^2(-\Delta + \tau^2 I)^{-\alpha})$
     with the mean value $\mu$ drawn from a one-dimensional normal distribution.
     """
     ndim = 2

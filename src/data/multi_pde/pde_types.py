@@ -3,7 +3,6 @@ Generate DAG as well as LaTeX representations for the PDE types involved in the
 custom multi_pde dataset.
 """
 import os
-import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Callable, Union, Tuple, List, Dict
@@ -49,8 +48,9 @@ class PDEInfoBase(ABC):
         Get the name of the variable indexed by `idx_var`.
         """
 
-    @staticmethod
-    def dag_file_suffix(config: DictConfig,
+    @classmethod
+    def dag_file_suffix(cls,
+                        config: DictConfig,
                         file_ext: str = ".hdf5") -> str:
         r"""
         The custom multi_pde dataset requires preprocessing, in which we construct
@@ -121,7 +121,7 @@ class PDEInfoBase(ABC):
         dag_filepath = cls.dag_info_file_path(config, filename)
         if os.path.exists(dag_filepath):
             return  # no need to (re)generate DAG file
-        print_fn(time.strftime("%H:%M:%S") + " generating " + dag_filepath)
+        print_fn("generating " + dag_filepath)
 
         n_scalar_nodes = config.data.pde_dag.max_n_scalar_nodes
         n_function_nodes = config.data.pde_dag.max_n_function_nodes
@@ -133,8 +133,6 @@ class PDEInfoBase(ABC):
         h5file_in = h5py.File(u_filepath, "r")
 
         # data to be saved
-        # # Shape is [n_pde, n_t, n_x, n_y].
-        # n_pde, _, n_x, n_y = h5file_in["sol/u"].shape
         n_pde = h5file_in["args/num_pde"][()]
         # n_x = np.size(h5file_in["coord/x"])
         # n_y = np.size(h5file_in["coord/y"])
@@ -439,7 +437,7 @@ class Wave2DInfo(DiffConvecReac2DInfo):
     IS_WAVE: bool = True
 
 
-@record_pde_info("mcompn", "multiComponent", "mcdcr")
+@record_pde_info("mcompn", "multiComponent", "mcdcr", "mvdcr")
 class MultiComponent2DInfo(PDEInfoBase):
     r"""
     ======== PDE with Multiple Components ========
@@ -668,7 +666,7 @@ class MultiComponent2DInfo(PDEInfoBase):
         pde_dag.plot()
 
 
-@record_pde_info("mcLgK", "mcdcrLgK")
+@record_pde_info("mcLgK", "mcdcrLgK", "mvdcrLgK")
 class MCompnLgKappa2DInfo(MultiComponent2DInfo):
     r"""
     Same as standard multi-component diffusion-convection-reaction equation,
@@ -683,7 +681,7 @@ class MCompnLgKappa2DInfo(MultiComponent2DInfo):
         return "_lgK" + super().dag_file_suffix(config, file_ext=file_ext)
 
 
-@record_pde_info("mcwave", "mcWave", "MCWave")
+@record_pde_info("mcwave", "mcWave", "MCWave", "mvwave")
 class MCWave2DInfo(MultiComponent2DInfo):
     r"""
     ======== Wave Equation with Multiple Components ========
@@ -785,7 +783,7 @@ class DivConstraintWave2DInfo(DivConstraintDCR2DInfo):
     IS_WAVE: bool = True
 
 
-@record_pde_info("swe", "shallowWater")
+@record_pde_info("swe", "shallowWater", "gswe")
 class ShallowWater2DInfo(PDEInfoBase):
     r"""
     ======== Shallow Water Equation ========
@@ -930,7 +928,7 @@ class ShallowWater2DInfo(PDEInfoBase):
         return _term_cls_to_obj(term_cls_dict, h5file_in, idx_pde, keep_all_coef)
 
 
-@record_pde_info("sweLgK", "shallowWaterLgK")
+@record_pde_info("sweLgK", "shallowWaterLgK", "gsweLgK")
 class ShallowWaterLgKappa2DInfo(ShallowWater2DInfo):
     r"""
     Same as the standard shallow-water equation, but with the coefficients
@@ -1151,7 +1149,7 @@ class ElasticWave2DInfo(PDEInfoBase):
         dag_filepath = cls.dag_info_file_path(config, filename)
         if os.path.exists(dag_filepath):
             return  # no need to (re)generate DAG file
-        print_fn(time.strftime("%H:%M:%S") + " generating " + dag_filepath)
+        print_fn(" generating " + dag_filepath)
 
         n_scalar_nodes = config.data.pde_dag.max_n_scalar_nodes
         n_function_nodes = config.data.pde_dag.max_n_function_nodes
@@ -1184,10 +1182,9 @@ class ElasticWave2DInfo(PDEInfoBase):
                 pde = cls.pde_nodes(h5file_in, idx_pde, keep_all_coef=False)
                 pde_dag = pde.gen_dag(config)
                 is_valid[idx_pde] = True
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as err:  # pylint: disable=broad-except
                 is_valid[idx_pde] = False
-                print_fn(time.strftime("%H:%M:%S") +
-                         f" Error in idx_pde={idx_pde}: {e}")
+                print_fn(f"Error in idx_pde={idx_pde}: {err}")
                 continue
 
             node_type[idx_pde] = pde_dag.node_type

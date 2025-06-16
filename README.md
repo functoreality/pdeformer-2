@@ -62,15 +62,18 @@ The details are as follows:
 
 | Model | Parameters | Configuration File | Checkpoint File |
 | ---- | ---- | ---- | ---- |
-| PDEformer2-S | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
-| PDEformer2-M | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
-| PDEformer2-L | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
+| PDEformer-2-base | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
+| PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
+| PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
+
+PDEformer-2-small (i.e., the S model) is provided for users requiring faster inference.
+We have not evaluate its performance systematically.
 
 ### Inference Example
 
 The example code below demonstrates how to use PDEformer-2 to predict the solution of a given PDE,
 taking the nonlinear conservation law $u_{t}+(u^2)_x+(-0.3u)_y=0$ (with periodic boundary conditions) as the example.
-Before running, it is necessary to download the pretrained PDEformer weights `model-M.ckpt` from [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt),
+Before running, it is necessary to download the pretrained PDEformer-2-fast weights `model-M.ckpt` from [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt),
 and change the value of the `model.load_ckpt` entry in [configs/inference/model-M.yaml](configs/inference/model-M.yaml) to the path of the corresponding weight file.
 
 ```python
@@ -81,7 +84,7 @@ from src.inference import infer_plot_2d, x_fenc, y_fenc
 
 # Basic Settings
 context.set_context(mode=context.PYNATIVE_MODE, device_target="CPU")
-config, _ = load_config("configs/inference/model-M.yaml")
+config = load_config("configs/inference/model-M.yaml")
 model = get_model(config)
 
 # Specify the PDE to be solved

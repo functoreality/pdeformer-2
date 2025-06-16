@@ -1,5 +1,5 @@
 model_type: pdeformer
-model:
+model:  # PDEformer-2-base
   graphormer:
     num_node_type: 128
     num_in_degree: 32
@@ -50,15 +50,15 @@ data:
     disconn_attn_bias: -inf
   multi_pde:
     train:
-      dcr_0: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed2
+      dcr_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed2
       dcr_disk: dedalus_v5.1_DiffConvecReac2D_hom_disk_cU1_k1e-03_0.01_seed1
       wave_npX: dedalus_v5.1_Wave2D_hom_npX_sJ3_cU1_k1e-02_4_seed2
-      mcdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed2
+      mvdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed2
     test:
-      dcr_0: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
+      dcr_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
       dcr_disk: dedalus_v5.1_DiffConvecReac2D_hom_disk_cU1_k1e-03_0.01_seed0
       wave_npX: dedalus_v5.1_Wave2D_hom_npX_sJ3_cU1_k1e-02_4_seed1
-      mcdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed1
+      mvdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed1
   dynamic:
     enabled: False
 train:

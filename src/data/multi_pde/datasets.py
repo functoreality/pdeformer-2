@@ -140,7 +140,7 @@ def _compute_full_shape(shape_tuple: Tuple[int], total_size: int) -> Tuple[int]:
 def _downsample_array(array: NDArray[float],
                       target_shape: Tuple[int],
                       random_axes: Optional[List[int]] = None) -> NDArray[float]:
-    """Downsamples the input array."""
+    r"""Downsamples the input array."""
     input_shape = array.shape
 
     # Check if the input shape and target shape are compatible
@@ -465,6 +465,7 @@ class Dedalus2DDatasetBase(MultiPDEDatasetBase):
         self.dag_info = h5py.File(dag_filepath, "r")
 
     def _get_dag_info(self, idx_pde: int, idx_var: int) -> Tuple[NDArray]:
+        idx_pde = self._get_file_idx(idx_pde)
         dag_info = self.dag_info
 
         # generate node_function
@@ -500,6 +501,7 @@ class Dedalus2DDatasetBase(MultiPDEDatasetBase):
         return dag_tuple
 
     def _get_txyz_coord(self, idx_pde: int, idx_var: int) -> NDArray[float]:
+        idx_pde = self._get_file_idx(idx_pde)
         if "x" in self.h5_file_u["coord"]:  # shared coordinate case
             return self.txyz_coord
         if "coords" not in self.h5_file_u["sol"]:
@@ -517,11 +519,13 @@ class Dedalus2DDatasetBase(MultiPDEDatasetBase):
         return txyz_coord.astype(float_dtype)
 
     def _get_ui_label(self, idx_pde: int, idx_var: int) -> NDArray[float]:
+        idx_pde = self._get_file_idx(idx_pde)
         if idx_var != 0:
             raise ValueError("When 'n_vars' is 1, 'idx_var' should be 0.")
         return self.h5_file_u["sol/u"][idx_pde]
 
     def _get_pde_latex(self, idx_pde: int, idx_var: int) -> Tuple:
+        idx_pde = self._get_file_idx(idx_pde)
         pde_latex, coef_dict = self.pde_info_cls.pde_latex(
             self.h5_file_u, idx_pde, keep_all_coef=False)
         var_latex = self.pde_info_cls.var_latex(idx_var)
@@ -529,6 +533,11 @@ class Dedalus2DDatasetBase(MultiPDEDatasetBase):
 
     def _get_total_samples(self) -> int:
         return self.h5_file_u["args/num_pde"][()]
+
+    def _get_file_idx(self, idx_pde: int) -> int:
+        r"""Get the index of data in the h5file with logical index `idx_pde` in
+        the dataset."""
+        return idx_pde
 
 
 @record_pde_dataset("diffConvecReac", "dcr")
@@ -549,7 +558,7 @@ class Wave2DDataset(Dedalus2DDatasetBase):
     __doc__ = pde_info_cls.__doc__
 
 
-@record_pde_dataset("mcompn", "multiComponent", "mcdcr")  # pylint: disable=missing-docstring
+@record_pde_dataset("mcompn", "multiComponent", "mcdcr", "mvdcr")  # pylint: disable=missing-docstring
 class MultiComponent2DDataset(Dedalus2DDatasetBase):
     pde_info_cls: type = pde_types.MultiComponent2DInfo
     __doc__ = pde_info_cls.__doc__
@@ -568,16 +577,17 @@ class MultiComponent2DDataset(Dedalus2DDatasetBase):
                 "for the same virtual dataset object.")
 
     def _get_ui_label(self, idx_pde: int, idx_var: int) -> NDArray[float]:
+        idx_pde = self._get_file_idx(idx_pde)
         return self.h5_file_u[f"sol/u{idx_var}"][idx_pde]
 
 
-@record_pde_dataset("mcLgK", "mcdcrLgK")
+@record_pde_dataset("mcLgK", "mcdcrLgK", "mvdcrLgK")
 class MCompnLgKappa2DDataset(MultiComponent2DDataset):
     pde_info_cls: type = pde_types.MCompnLgKappa2DInfo
     __doc__ = pde_info_cls.__doc__
 
 
-@record_pde_dataset("mcwave", "mcWave", "MCWave")
+@record_pde_dataset("mcwave", "mcWave", "MCWave", "mvwave")
 class MCWave2DDataset(MultiComponent2DDataset):
     pde_info_cls: type = pde_types.MCWave2DInfo
     __doc__ = pde_info_cls.__doc__
@@ -605,6 +615,7 @@ class DivConstraintDCR2DDataset(Dedalus2DDatasetBase):
                 "same virtual dataset object.")
 
     def _get_ui_label(self, idx_pde: int, idx_var: int) -> NDArray[float]:
+        idx_pde = self._get_file_idx(idx_pde)
         var_name = "uvp"[idx_var]
         var_label = self.h5_file_u["sol/" + var_name][idx_pde]
         if idx_var == 2 or not self.valid_ic:
@@ -624,18 +635,19 @@ class DivConstraintWave2DDataset(DivConstraintDCR2DDataset):
     __doc__ = pde_info_cls.__doc__
 
 
-@record_pde_dataset("swe", "shallowWater")
+@record_pde_dataset("swe", "shallowWater", "gswe")
 class ShallowWater2DDataset(Dedalus2DDatasetBase):
     pde_info_cls: type = pde_types.ShallowWater2DInfo
     __doc__ = pde_info_cls.__doc__
     n_vars: int = 3
 
     def _get_ui_label(self, idx_pde: int, idx_var: int) -> NDArray[float]:
+        idx_pde = self._get_file_idx(idx_pde)
         var_name = "huv"[idx_var]
         return self.h5_file_u["sol/" + var_name][idx_pde]
 
 
-@record_pde_dataset("sweLgK", "shallowWaterLgK")
+@record_pde_dataset("sweLgK", "shallowWaterLgK", "gsweLgK")
 class ShallowWaterLgKappa2DDataset(ShallowWater2DDataset):
     pde_info_cls: type = pde_types.ShallowWaterLgKappa2DInfo
     __doc__ = pde_info_cls.__doc__

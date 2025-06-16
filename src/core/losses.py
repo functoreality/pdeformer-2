@@ -1,15 +1,17 @@
 """Loss functions."""
-from typing import Optional, List
+from typing import Optional, List, Union, Tuple
 from abc import abstractmethod
 
 import numpy as np
 from omegaconf import OmegaConf, DictConfig
-from mindspore import nn, ops, Tensor
-from mindspore import context
+from mindspore import nn, ops, Tensor, Parameter, float32, context
 from mindspore.ops import functional as F
+from mindspore.ops import operations as P
+
+from ..cell.baseline.dft import dft2
 
 
-class PerSampleLossBase(nn.LossBase):
+class PerSampleLossBase(nn.Cell):
     r"""
     Base class for per-sample losses.
 
@@ -30,6 +32,22 @@ class PerSampleLossBase(nn.LossBase):
         Tensor, weighted loss float tensor, the shape is :math:`(N)`.
     """
 
+    def __init__(self, reduction: str = "mean") -> None:
+        super().__init__()
+        if reduction == "mean":
+            self.reduce = ops.mean
+        elif reduction == "sum":
+            self.reduce = ops.sum
+        elif reduction == "nanmean":
+            self.reduce = ops.nanmean
+        elif reduction == "nansum":
+            self.reduce = ops.nansum
+        else:
+            raise ValueError
+
+        self.mul = P.Mul()
+        self.cast = P.Cast()
+
     @abstractmethod
     def construct(self,
                   logits: Tensor,
@@ -37,13 +55,29 @@ class PerSampleLossBase(nn.LossBase):
                   coordinate: Optional[Tensor]) -> Tensor:
         r"""construct"""
 
-    def get_axis(self, x: Tensor):
-        shape = F.shape(x)
-        length = F.tuple_len(shape)
-        # The only difference compared with nn.LossBase: The axis starts from 1
-        # instead of 0, thereby avoid reduction over the samples (axis 0).
-        perm = F.make_range(1, length)
-        return perm
+    def get_loss(self, x: Tensor, weights: Union[float, Tensor] = 1.0) -> Tensor:
+        r"""
+        Computes the weighted loss for each data sample.
+
+        Args:
+            x (Tensor): Tensor of shape :math:`(N, *)` where :math:`*` means,
+                any number of additional dimensions.
+            weights (Union[float, Tensor]): Optional `Tensor` whose rank is
+                either 0, or the same rank as inputs, and must be broadcastable
+                to inputs (i.e., all dimensions must be either `1`, or the same
+                as the corresponding inputs dimension). Default: ``1.0`` .
+
+        Returns:
+            The weighted loss for each data sample.
+        """
+        input_dtype = x.dtype
+        x = self.cast(x, float32)
+        weights = self.cast(weights, float32)
+        x = self.mul(weights, x)
+        x = x.reshape(x.shape[0], -1)  # [B, ...] -> [B, *]
+        x = self.reduce(x, axis=-1)  # [B, *] -> [B]
+        x = self.cast(x, input_dtype)
+        return x
 
 
 class PerSampleMSELoss(PerSampleLossBase):
@@ -98,7 +132,7 @@ class PerSampleMSELoss(PerSampleLossBase):
         return self.get_loss(x)
 
 
-class PerSampleRMSELoss(PerSampleLossBase):
+class PerSampleRMSELoss(PerSampleMSELoss):
     r"""
     PerSampleRMSELoss creates a criterion to measure the root mean square error
     between :math:`x` and :math:`y` for each data sample, where :math:`x` is
@@ -130,16 +164,12 @@ class PerSampleRMSELoss(PerSampleLossBase):
         (4,)
     """
 
-    def __init__(self) -> None:
-        """Initialize PerSampleRMSELoss."""
-        super().__init__()
-        self.persample_mse_loss = PerSampleMSELoss()
-
     def construct(self,
                   logits: Tensor,
                   labels: Tensor,
                   coordinate: Optional[Tensor] = None) -> Tensor:
-        rmse_loss = F.sqrt(self.persample_mse_loss(logits, labels))
+        mse_loss = super().construct(logits, labels)
+        rmse_loss = F.sqrt(mse_loss)
         return rmse_loss
 
 
@@ -238,12 +268,12 @@ class PerSampleMixedLoss(PerSampleLossBase):
         (4,)
     """
 
-    def __init__(self, weight: float = 0.1):
-        super().__init__()
+    def __init__(self, weight: float = 0.1, reduction: str = "mean") -> None:
+        super().__init__(reduction)
         self.mae_weight = weight
         self.rmse_weight = 1. - weight
-        self.mae = PerSampleMAELoss()
-        self.rmse = PerSampleRMSELoss()
+        self.mae = PerSampleMAELoss(reduction)
+        self.rmse = PerSampleRMSELoss(reduction)
 
     def construct(self,
                   logits: Tensor,
@@ -252,6 +282,61 @@ class PerSampleMixedLoss(PerSampleLossBase):
         rmse = self.rmse(logits, labels)
         mae = self.mae(logits, labels)
         loss = rmse * self.rmse_weight + mae * self.mae_weight
+        return loss
+
+
+class PerSampleSpectralLoss(PerSampleLossBase):
+    r"""
+    Calculates the weighted mean squared error in Fourier space between the
+    predicted value and the label value for each sample, with lower frequency
+    modes weighted more heavily.
+
+    Args:
+        modes (Tuple[int]): The number of Fourier modes to keep in each dimension.
+        sqrt (bool): Whether to take square-root of the loss (i.e. using RMSE).
+        reduction (str, optional): Apply specific reduction method to the
+            output: 'none', 'mean', 'sum'.  Default: 'mean'
+
+    Inputs:
+        - **logits** (Tensor) - Tensor of shape :math:`(N, *)` where :math:`*`
+          means any number of additional dimensions.
+        - **labels** (Tensor) - Tensor of shape :math:`(N, *)`, same shape as
+          the `logits`.
+
+    Outputs:
+        Tensor, weighted spectral loss float tensor and its shape is :math:`(N)`.
+    """
+
+    def __init__(self,
+                 modes: Union[int, Tuple[int]] = (12, 12),
+                 sqrt: bool = False,
+                 reduction: str = "mean",
+                 compute_dtype=float32) -> None:
+        super().__init__(reduction)
+        self.sqrt = sqrt
+        if isinstance(modes, int):
+            modes = (modes, modes)
+        self.dft_cell = dft2(shape=(128, 128), modes=modes,
+                             compute_dtype=compute_dtype)
+
+    def construct(self,
+                  logits: Tensor,
+                  labels: Tensor,
+                  coordinate: Optional[Tensor] = None) -> Tensor:
+        error = logits - labels
+        bsz = error.shape[0]
+        n_vars = error.shape[-1]
+        # [bsz, ..., n_vars] -> [bsz, nx=128, ny=128, n_vars]
+        error = error.reshape(bsz, 128, 128, n_vars)
+        # [bsz, nx=128, ny=128, n_vars] -> [bsz, n_vars, 128, 128]
+        error = error.transpose(0, 3, 1, 2)
+
+        # Transform error to Fourier space
+        err_ft_re, err_ft_im = self.dft_cell((error, ops.zeros_like(error)))
+        err_ft_magnitude = err_ft_re**2 + err_ft_im**2
+        loss = self.get_loss(err_ft_magnitude)
+        if self.sqrt:
+            loss = ops.sqrt(loss)
         return loss
 
 
@@ -293,11 +378,14 @@ class PerSampleH1Loss(PerSampleLossBase):
         (4,)
     """
 
-    def __init__(self, kmax: float = 10.0, knum: int = 8192):
-        super().__init__()
+    def __init__(self,
+                 kmax: float = 10.0,
+                 knum: int = 8192,
+                 reduction: str = "mean") -> None:
+        super().__init__(reduction)
         self.kmax = kmax
         self.knum = knum
-        self.mse = PerSampleMSELoss()
+        self.mse = PerSampleMSELoss(reduction)
 
     def construct(self,
                   logits: Tensor,
@@ -352,9 +440,9 @@ class PerSampleH1LossT(PerSampleLossBase):
         (4,)
     """
 
-    def __init__(self, samp_shape: List[int]):
-        super().__init__()
-        self.mse = PerSampleMSELoss()
+    def __init__(self, samp_shape: List[int], reduction: str = "mean") -> None:
+        super().__init__(reduction)
+        self.mse = PerSampleMSELoss(reduction)
         self.samp_shape = tuple(samp_shape)
 
     def construct(self,
@@ -412,9 +500,9 @@ class PerSampleH1LossXYZ(PerSampleLossBase):
         (4,)
     """
 
-    def __init__(self, samp_shape: List[int]):
-        super().__init__()
-        self.mse = PerSampleMSELoss()
+    def __init__(self, samp_shape: List[int], reduction: str = "mean") -> None:
+        super().__init__(reduction)
+        self.mse = PerSampleMSELoss(reduction)
         self.samp_shape = tuple(samp_shape)
 
     def construct(self,
@@ -467,57 +555,65 @@ class LossFunction(nn.Cell):
 
     def __init__(self,
                  sub_config: DictConfig,
-                 reduce_mean: bool = True) -> None:
+                 reduce_mean: bool = True,
+                 compute_dtype=float32) -> None:
         super().__init__()
-        config_loss = sub_config.get('loss', OmegaConf.create({}))
-        config_normalize_loss = sub_config.get('normalize_loss', config_loss)
-        self.normalize = config_loss.get('normalize', True)
+        config_loss_main = sub_config.get("loss", OmegaConf.create({}))
+        config_normalize_loss = sub_config.get("normalize_loss", config_loss_main)
+        self.normalize = config_loss_main.get("normalize", True)
         self.reduce_mean = reduce_mean
-        self.normalize_eps = config_loss.get('normalize_eps', 1.e-6)
+        self.normalize_eps = config_loss_main.get("normalize_eps", 1.e-6)
         if self.normalize_eps <= 0:
             raise ValueError(
                 f"'normalize_eps' should be a positive float, but got '{self.normalize_eps}'.")
 
         def get_loss_fn(config_loss: DictConfig) -> PerSampleLossBase:
-            loss_type = config_loss.get('type', 'RMSE').upper()
-            if loss_type == 'MSE':
-                loss_fn = PerSampleMSELoss()
-            elif loss_type == 'RMSE':
-                loss_fn = PerSampleRMSELoss()
-            elif loss_type == 'MAE':
-                loss_fn = PerSampleMAELoss()
-            elif loss_type == 'MIXED':
-                weight = OmegaConf.select(config_loss, 'mixed.weight', default=0.1)
-                loss_fn = PerSampleMixedLoss(weight)
-            elif loss_type == 'H1':
-                samp_axes = sub_config.get('samp_axes', 'txyz').lower()
-                if samp_axes == 'txyz':
-                    kmax = OmegaConf.select(config_loss, 'h1.kmax', default=20.0)
-                    knum = OmegaConf.select(config_loss, 'h1.knum', default=8192)
-                    loss_fn = PerSampleH1Loss(kmax, knum)
-                elif samp_axes == 't':
-                    samp_shape = OmegaConf.select(sub_config, 'samp_shape', default=[-1, 128, 128])
+            loss_type = config_loss.get("type", "RMSE").upper()
+            reduction = config_loss.get("sample_reduce", "nanmean").lower()
+            if loss_type == "MSE":
+                loss_fn = PerSampleMSELoss(reduction)
+            elif loss_type == "RMSE":
+                loss_fn = PerSampleRMSELoss(reduction)
+            elif loss_type == "MAE":
+                loss_fn = PerSampleMAELoss(reduction)
+            elif loss_type == "MIXED":
+                weight = config_loss.mixed_weight
+                loss_fn = PerSampleMixedLoss(weight, reduction)
+            elif loss_type in ["SPEC", "SPECTRAL"]:
+                loss_fn = PerSampleSpectralLoss(
+                    config_loss.spectral_modes,
+                    config_loss.spectral_sqrt,
+                    reduction=reduction,
+                    compute_dtype=compute_dtype)
+            elif loss_type == "H1":
+                samp_axes = sub_config.get("samp_axes", "txyz").lower()
+                if samp_axes == "txyz":
+                    kmax = OmegaConf.select(config_loss, "h1.kmax", default=20.0)
+                    knum = OmegaConf.select(config_loss, "h1.knum", default=8192)
+                    loss_fn = PerSampleH1Loss(kmax, knum, reduction)
+                elif samp_axes == "t":
+                    samp_shape = OmegaConf.select(sub_config, "samp_shape", default=[-1, 128, 128])
                     if len(samp_shape) not in [3, 4]:
                         raise ValueError(
                             f"Invalid samp_shape {samp_shape}. The shape should be a list of 3"
                             f" integers [n_t, n_x, n_y] or 4 integers [n_t, n_x, n_y, n_z].")
                     if len(samp_shape) == 3:
                         samp_shape.append(1)
-                    loss_fn = PerSampleH1LossT(samp_shape)
-                elif samp_axes == 'xyz':
-                    samp_shape = OmegaConf.select(sub_config, 'samp_shape', default=[101, -1])
+                    loss_fn = PerSampleH1LossT(samp_shape, reduction)
+                elif samp_axes == "xyz":
+                    samp_shape = OmegaConf.select(sub_config, "samp_shape", default=[101, -1])
                     if len(samp_shape) != 2:
                         raise ValueError(
                             f"Invalid samp_shape {samp_shape}. The shape should be a list of 2"
                             f" integers [n_t, n_xyz].")
-                    loss_fn = PerSampleH1LossXYZ(samp_shape)
+                    loss_fn = PerSampleH1LossXYZ(samp_shape, reduction)
             else:
                 raise ValueError(
                     "'loss_type' should be one of ['MSE', 'RMSE', 'MAE', 'MIXED', 'H1'], "
                     f"but got '{loss_type}'.")
             return loss_fn
 
-        self.sample_loss_fn = get_loss_fn(config_loss)
+        self.sample_loss_fn = get_loss_fn(config_loss_main)
         self.sample_normalize_fn = get_loss_fn(config_normalize_loss)
 
     def construct(self,
@@ -534,10 +630,71 @@ class LossFunction(nn.Cell):
         return loss
 
 
+class DeltaWeightPenalty(nn.Cell):
+    r"""
+    To surpress overfitting during model fine-tuning, we penalize the model
+    weight update, i.e. the distance between the fine-tuned model weights and
+    the original ones.
+
+    Args:
+        - model (nn.Cell): Target model to be fine-tuned.
+        - config_dw_penalty (DictConfig): Configurations. Typically
+          `config.train.dw_penalty` in the config file.
+
+    An (Incomplete) Usage Example:
+        >>> dw_penalty = DeltaWeightPenalty(model, config.train.dw_penalty)
+        >>> loss = loss_fn(pred, label, coordinate)
+        >>> loss = loss + dw_penalty()
+        >>> loss = loss_scaler.scale(loss)
+    """
+
+    def __init__(self, model: nn.Cell, config_dw_penalty: DictConfig) -> None:
+        super().__init__()
+        self.current_params = model.trainable_params()
+        self.original_params = [Tensor(param).copy()
+                                for param in self.current_params]
+
+        self.mode = config_dw_penalty.mode.lower()
+        self.coef = Parameter(Tensor(config_dw_penalty.init_coef, float32),
+                              name="dw_penalty_coef",
+                              requires_grad=False)
+        # self.distance_value = Parameter(
+        #     Tensor(0., float32), name="distance_value", requires_grad=False)
+        distance_fn = config_dw_penalty.distance_fn.upper()
+        if distance_fn == "MSE":
+            self.entry_fn = ops.Square()
+            self.output_fn = ops.Identity()
+        elif distance_fn == "MAE":
+            self.entry_fn = ops.Abs()
+            self.output_fn = ops.Identity()
+        elif distance_fn == "RMSE":
+            self.entry_fn = ops.Square()
+            self.output_fn = ops.Sqrt()
+
+    def construct(self) -> Tensor:
+        r"""construct"""
+        if self.mode == "disabled":
+            return 0.
+        param_diff = 0.
+        for init_param, curr_param in zip(self.original_params, self.current_params):
+            param_diff = param_diff + ops.sum(self.entry_fn(curr_param - init_param))
+        param_diff = self.output_fn(param_diff)
+        # self.distance_value.set_data(param_diff)
+        return self.coef * param_diff
+
+    # def get_distance(self) -> float:
+    #     r"""Get the last distance value."""
+    #     return self.distance_value.asnumpy().item()
+
+
 if __name__ == "__main__":  # unit test
     context.set_context(mode=context.GRAPH_MODE, device_target="CPU")
-    test_loss_fn = PerSampleMixedLoss()
-    x1 = Tensor(np.random.rand(3, 2, 2))
-    x2 = Tensor(np.random.rand(3, 2, 2))
+    # test_loss_fn = PerSampleMixedLoss(0.5, "nanmean")
+    # x1 = np.random.rand(3, 2, 2)
+    # x1[:, 0] = np.nan
+    # x2 = Tensor(np.random.rand(3, 2, 2))
+    test_loss_fn = PerSampleSpectralLoss()
+    x1 = Tensor(np.random.rand(2, 128*128, 1))
+    x2 = Tensor(np.random.rand(2, 128*128, 1))
     raw_loss = test_loss_fn(x1, x2)
     print(raw_loss)

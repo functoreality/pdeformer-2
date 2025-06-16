@@ -45,6 +45,7 @@ data:
     max_n_function_nodes: 13
     disconn_attn_bias: '-inf'
 inverse:
+  data_source: multi_pde
   pde_type: dcr
   data_file: dedalus_v5.1_inv_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
   pde_cases: 40

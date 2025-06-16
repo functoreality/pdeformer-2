@@ -85,14 +85,17 @@ pip3 install -r pip-requirements.txt
 
 | 模型 | 参数量 | 配置文件 | 预训练权重文件 |
 | ---- | ---- | ---- | ---- |
-| PDEformer2-S | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
-| PDEformer2-M | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
-| PDEformer2-L | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
+| PDEformer-2-base | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
+| PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
+| PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
+
+其中 PDEformer-2-small（即 S 模型）仅为需要更快推理时间的用户提供。
+我们并未系统地评估它的性能。
 
 ### 推理示例
 
 下面的示例代码展示了如何使用 PDEformer-2 预测给定 PDE 的解，以非线性守恒律方程 $u_{t}+(u^2)_x+(-0.3u)_y=0$ （周期边界）为例。
-运行前需要先从 [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) 下载经过预训练的 PDEformer-2 权重 `model-M.ckpt`，
+运行前需要先从 [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) 下载经过预训练的 PDEformer-2-fast 权重 `model-M.ckpt`，
 并将 [configs/inference/model-M.yaml](configs/inference/model-M.yaml) 中 `model.load_ckpt` 参数的值改为相应的权重文件路径。
 
 ```python

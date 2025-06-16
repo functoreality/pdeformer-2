@@ -4,7 +4,7 @@ from typing import Tuple
 from omegaconf import DictConfig
 
 from .multi_pde.dataloader import static_multi_pde_dataset, dynamic_multi_pde_dataset
-from .load_single_pde import single_pde_dataset
+from .single_pde import single_pde_dataset
 
 
 def load_dataset(config: DictConfig) -> Tuple:

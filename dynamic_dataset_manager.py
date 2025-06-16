@@ -6,8 +6,8 @@ the local disk, we have to treat the local disk as a "buffer" that stores only
 a subset of the complete training dataset, and dynamically replace the existing
 data in this subset by new data not in this subset.
 
-The complete training dataset may be 1. stored in a remote disk with large
-capacity (in the case of the authors, the OBS server), or 2. compressed
+The complete training dataset may be (1) stored in a remote disk with large
+capacity (in the case of the authors, the OBS server), or (2) compressed
 (currently not implemented). If users want to use this script to execute
 dynamic buffered training, you may need to inherit the class
 'DataFileManagerBase', and implement your own methods to prepare new data on
@@ -35,6 +35,7 @@ from src.utils import load_config
 from src.data.multi_pde.pde_types import (
     get_pde_info_cls, gen_file_list, DYN_DSET_COMM_DIR,
     DAG_INFO_DIR, FileListType)
+from src.data.single_pde.dataloader import preprocess_single_pde
 
 FileNum = namedtuple("FileNum", ("n_logical_dataset", "max_inactive_files"))
 
@@ -495,12 +496,14 @@ def main() -> None:
     parser.add_argument("--config_file_path", "-c", type=str, required=True,
                         help="Path of the configuration YAML file.")
     args = parser.parse_args()
-    config, _ = load_config(args.config_file_path)
+    config = load_config(args.config_file_path)
     if config.data.dynamic.log_detail:
         logger.setLevel(logging.DEBUG)
+    logging.info("PID: %d", os.getpid())
 
     # static (non-dynamic) case
     if not config.data.dynamic.enabled:
+        preprocess_single_pde(config, logging.info)
         prepare_static_dataset(config)
         return
 

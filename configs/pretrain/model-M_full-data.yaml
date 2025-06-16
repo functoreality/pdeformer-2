@@ -1,11 +1,11 @@
 base_config: configs/pretrain/model-L_small-data.yaml
-model:
+model:  # PDEformer-2-fast
   inr:
     dim_hidden: 256
 data:
   multi_pde:
     train:
-      dcr_0:
+      dcr_base:
         format: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed%d
         begin: 2
         num: 110
@@ -33,7 +33,7 @@ data:
         format: dedalus_v5.1_DiffConvecReac2D_inhom_cU1_k1e-03_0.1_seed%d
         begin: 2
         num: 100
-      wave_0:
+      wave_base:
         format: dedalus_v5.1_Wave2D_hom_sJ3_cU1_k1e-02_4_seed%d
         begin: 2
         num: 125
@@ -55,19 +55,19 @@ data:
         format: dedalus_v5.1_Wave2D_inhom_sJ3_cU1_k1e-02_4_seed%d
         begin: 2
         num: 100
-      mcdcr_2:
+      mvdcr_2:
         format: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed%d
         begin: 2
         num: 160
-      mcdcr_2_0:  # linear flux case
+      mvdcr_2_0:  # linear flux case
         format: dedalus_v5.1_MCompn2D_hom_fNL0_nv2_cU1_k1e-03_0.01_seed%d
         begin: 1
         num: 100
-      mcdcr_3_1:
+      mvdcr_3_1:
         format: dedalus_v5.1_MCompn2D_hom_fNL1_nv3_cU1_k1e-03_0.01_seed%d
         begin: 1
         num: 200
-      mcdcr_4_0:
+      mvdcr_4_0:
         format: dedalus_v5.1_MCompn2D_hom_fNL0_nv4_cU1_k1e-03_0.01_seed%d
         begin: 1
         num: 200
@@ -79,15 +79,15 @@ data:
         format: dedalus_v5.1_DivConstrDCR2D_icA_hom_cU1_k1e-03_0.01_seed%d
         begin: 2
         num: 100
-      mcwave_2:
+      mvwave_2:
         format: dedalus_v5.1_MCWave2D_hom_nv2_cU1_k1e-02_4_seed%d
         begin: 2
         num: 120
-      mcwave_3:
+      mvwave_3:
         format: dedalus_v5.1_MCWave2D_hom_nv3_cU1_k1e-02_4_seed%d
         begin: 2
         num: 100
-      mcwave_4:
+      mvwave_4:
         format: dedalus_v5.1_MCWave2D_hom_nv4_cU1_k1e-02_4_seed%d
         begin: 2
         num: 100
@@ -103,47 +103,47 @@ data:
         format: dedalus_v5.1_SWE2D_hom_cU1_k1e-03_0.01_seed%d
         begin: 1
         num: 100
-      elasticsteady_v2a:
+      elasticsteady:
         format: fenicsx_v2.1_ElasticSteady2D_iso_cU1_k5e-01_2_nf3_ntf1_ftype1_scatFalse_N128_seed%d
         begin: 1
         num: 255
     test:
-      dcr_0: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
-      dcrLgK_0: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
+      dcr_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
+      dcrLgK_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
       dcr_npX: dedalus_v5.1_DiffConvecReac2D_hom_npX_cU1_k1e-03_0.01_seed53
       dcr_npY: dedalus_v5.1_DiffConvecReac2D_hom_npY_cU1_k1e-03_0.01_seed1
       dcr_disk: dedalus_v5.1_DiffConvecReac2D_hom_disk_cU1_k1e-03_0.01_seed0
       dcr_sJ3: dedalus_v5.1_DiffConvecReac2D_hom_sJ3_cU1_k1e-03_0.01_seed1
       dcr_inhom: dedalus_v5.1_DiffConvecReac2D_inhom_cU1_k1e-03_0.1_seed1
       dcr_inhom_lowK: dedalus_v5.1_DiffConvecReac2D_inhom_cU1_k1e-03_0.01_seed1  # no training set
-      wave_0: dedalus_v5.1_Wave2D_hom_sJ3_cU1_k1e-02_4_seed1
+      wave_base: dedalus_v5.1_Wave2D_hom_sJ3_cU1_k1e-02_4_seed1
       wave_npX: dedalus_v5.1_Wave2D_hom_npX_sJ3_cU1_k1e-02_4_seed1
       wave_npY: dedalus_v5.1_Wave2D_hom_npY_sJ3_cU1_k1e-02_4_seed2
       wave_disk: dedalus_v5.1_Wave2D_hom_disk_cU1_k1e-02_4_seed0
       wave_inhom: dedalus_v5.1_Wave2D_inhom_sJ3_cU1_k1e-02_4_seed1
-      mcdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed1
-      mcdcr_2_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv2_cU1_k1e-03_0.01_seed0
-      mcdcr_3_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv3_cU1_k1e-03_0.01_seed0  # no training set
-      mcdcr_3_1: dedalus_v5.1_MCompn2D_hom_fNL1_nv3_cU1_k1e-03_0.01_seed0
-      mcdcr_4_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv4_cU1_k1e-03_0.01_seed0
-      mcdcr_5_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv5_cU1_k1e-03_0.01_seed0  # ood
+      mvdcr_2: dedalus_v5.1_MCompn2D_hom_nv2_cU1_k1e-03_0.01_seed1
+      mvdcr_2_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv2_cU1_k1e-03_0.01_seed0
+      mvdcr_3_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv3_cU1_k1e-03_0.01_seed0  # no training set
+      mvdcr_3_1: dedalus_v5.1_MCompn2D_hom_fNL1_nv3_cU1_k1e-03_0.01_seed0
+      mvdcr_4_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv4_cU1_k1e-03_0.01_seed0
+      mvdcr_5_0: dedalus_v5.1_MCompn2D_hom_fNL0_nv5_cU1_k1e-03_0.01_seed0  # ood
       dcdcr_icV: dedalus_v5.1_DivConstrDCR2D_icV_hom_cU1_k1e-03_0.01_seed1
       dcdcr_icA: dedalus_v5.1_DivConstrDCR2D_icA_hom_cU1_k1e-03_0.01_seed1
-      mcwave_2: dedalus_v5.1_MCWave2D_hom_nv2_cU1_k1e-02_4_seed1
-      mcwave_3: dedalus_v5.1_MCWave2D_hom_nv3_cU1_k1e-02_4_seed1
-      mcwave_4: dedalus_v5.1_MCWave2D_hom_nv4_cU1_k1e-02_4_seed1
-      # mcwave_5: dedalus_v5.1_MCWave2D_hom_nv5_cU1_k1e-02_4_seed1  # needs max_n_scalar_nodes=256, max_n_function_nodes=20
+      mvwave_2: dedalus_v5.1_MCWave2D_hom_nv2_cU1_k1e-02_4_seed1
+      mvwave_3: dedalus_v5.1_MCWave2D_hom_nv3_cU1_k1e-02_4_seed1
+      mvwave_4: dedalus_v5.1_MCWave2D_hom_nv4_cU1_k1e-02_4_seed1
+      # mvwave_5: dedalus_v5.1_MCWave2D_hom_nv5_cU1_k1e-02_4_seed1  # needs max_n_scalar_nodes=256, max_n_function_nodes=20
       dcwave_icV: dedalus_v5.1_DivConstrWave2D_icV_hom_cU1_k1e-02_4_seed1
       dcwave_icA: dedalus_v5.1_DivConstrWave2D_icA_hom_cU1_k1e-02_4_seed1
       swe: dedalus_v5.1_SWE2D_hom_cU1_k1e-03_0.01_seed0
-      elasticsteady_v2a: fenicsx_v2.1_ElasticSteady2D_iso_cU1_k5e-01_2_nf3_ntf1_ftype1_scatFalse_N128_seed0
+      elasticsteady: fenicsx_v2.1_ElasticSteady2D_iso_cU1_k5e-01_2_nf3_ntf1_ftype1_scatFalse_N128_seed0
   dynamic:
     enabled: True
     type_default:
       n_logical_dataset: 1
       max_inactive_files: 1
     type_custom:
-      - types: [dcr_disk, wave_disk, mcdcr_2, mcdcr_3_1, mcdcr_4_0, dcdcr_icV, dcdcr_icA, dcwave_icV, swe]
+      - types: [dcr_disk, wave_disk, mvdcr_2, mvdcr_3_1, mvdcr_4_0, dcdcr_icV, dcdcr_icA, dcwave_icV, swe]
         n_logical_dataset: 4
         max_inactive_files: 2
     remove_type: file+dag
@@ -153,5 +153,5 @@ train:
     type: exp
     decay: 0.1
 eval:
-  dataset_per_type: 0  # run eval loop manually after training is done
+  dataset_per_type: 0  # run evaluation manually and separately after training is done
 record_dir: "exp/pretrain/full-data/model-M"

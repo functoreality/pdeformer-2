@@ -13,7 +13,7 @@ from mindspore.amp import DynamicLossScaler, auto_mixed_precision
 
 from src.data import load_dataset, split_data_tuple
 from src.core import (calculate_l2_error, L2ErrorRecord, EvalErrorRecord,
-                      LossFunction, get_lr, get_optimizer)
+                      LossFunction, get_lr, get_optimizer, DeltaWeightPenalty)
 from src.utils import load_config, init_record, AllGather, set_seed
 from src.utils.visual import video_2d
 from src.cell import get_model
@@ -35,15 +35,16 @@ def parse_args():
                               "Supporting 'Ascend', 'GPU', 'CPU'."))
     parser.add_argument("--device_id", type=int, default=0,
                         help="ID of the target device")
-    parser.add_argument('--no_distributed', action='store_true',
-                        help='unenable distributed training (data parallel)')
-    parser.add_argument('--no_data_sink', action='store_true',
-                        help='unenable data sink during training')
+    parser.add_argument("--no_distributed", action="store_true",
+                        help="Disable distributed training (data parallel).")
+    parser.add_argument("--no_data_sink", action="store_true",
+                        help="Disable data sink during training.")
     parser.add_argument("--config_file_path", "-c", type=str, required=True,
                         help="Path of the configuration YAML file.")
 
     input_args = parser.parse_args()
-    input_args.distributed = not input_args.no_distributed
+    input_args.distributed = (input_args.device_target == "Ascend"
+                              and not input_args.no_distributed)
     input_args.data_sink = not input_args.no_data_sink
 
     return input_args
@@ -62,12 +63,16 @@ def plot_solution(label_plot: Tensor,
     coordinate = coordinate.asnumpy().astype(np.float32)
 
     # reshape arrays
-    shape = (data_info["n_t_grid"], data_info["n_x_grid"],
-             data_info["n_y_grid"], label_plot.shape[-1])
+    if "scatter_size" in data_info:
+        shape = (data_info["n_t_grid"], -1, label_plot.shape[-1])
+    else:
+        shape = (data_info["n_t_grid"], data_info["n_x_grid"],
+                 data_info["n_y_grid"], label_plot.shape[-1])
     label_plot = label_plot.reshape(shape)
     pred_plot = pred_plot.reshape(shape)
-    coordinate = coordinate.reshape(shape[:-1] + (4,))  # [nt, nx, ny, 4]
-    coordinate = coordinate[0, :, :, 1:3]  # [nx, ny, 2]
+    # [nt, nx, ny, 4] or [nt, n_scat, 4]
+    coordinate = coordinate.reshape(shape[:-1] + (4,))
+    coordinate = coordinate[0, ..., 1:3]  # [nx, ny, 2] or [n_scat, 2]
 
     # make the plot
     pde_latex = data_info["pde_latex"]
@@ -88,7 +93,8 @@ def eval_loop(dataset_iter, dataset, img_name="result", plot_num=1):
     worst_eval_error = 0.
     model.set_train(False)
     plot_idx = 0
-    eval_loss_fn = LossFunction(config.eval, reduce_mean=False)
+    eval_loss_fn = LossFunction(config.eval, reduce_mean=False,
+                                compute_dtype=compute_type)
     for data_tuple in dataset_iter:
         input_tuple, label, data_idx = split_data_tuple(data_tuple)  # (tuple, tensor, tensor)
         coordinate = input_tuple[-1]
@@ -99,6 +105,12 @@ def eval_loop(dataset_iter, dataset, img_name="result", plot_num=1):
         eval_error.extend(eval_error_tmp.tolist())
         l2_error_tmp = calculate_l2_error(pred, label)  # [bsz]
         l2_error.extend(l2_error_tmp.tolist())
+
+        # # reshape tensor for NO2D (currently n_t and n_vars need to be set manually)
+        # if config.model_type in ["fno2d", "unet2d"]:
+        #     # [bsz, n_x, n_y, n_t * n_vars] -> [bsz, n_x, n_y, n_t, n_vars] -> [bsz, n_t, n_x, n_y, n_vars]
+        #     label = label.reshape((label.shape[0], 128, 128, 20, 2)).transpose((0, 3, 1, 2, 4))
+        #     pred = pred.reshape((pred.shape[0], 128, 128, 20, 2)).transpose((0, 3, 1, 2, 4))
 
         # update the worst sample
         worst_idx = int(np.argmax(eval_error_tmp))
@@ -128,7 +140,7 @@ def eval_loop(dataset_iter, dataset, img_name="result", plot_num=1):
     l2_error = Tensor(l2_error).astype(mstype.float32)  # [datasize]
 
     # distributed training (data parallel)
-    if use_ascend and args.distributed:
+    if args.distributed:
         # [num_devices, datasize] => [num_devices * datasize]
         eval_error_np = all_gather(eval_error).flatten().asnumpy()
         l2_error_np = all_gather(l2_error).flatten().asnumpy()
@@ -169,10 +181,21 @@ def eval_plot_all_vars(dataset_iter, dataset, img_name="result", plot_num=1):
     variable is shown at a time. This function can be used to show the
     predictions of all variables in an image. Before substituting it for
     `eval_loop`, please make sure that:
-    1. The script is not run in parallel mode.
+    1. The script is NOT run in parallel mode.
     2. Set `config.eval.total_batch_size` to be equal to the number of
         variables of the PDE (eg. 1 for `dcr`/`wave`, 2 for `elasticsteady`,
         3 for `swe`/`dcdcr`).
+
+    Intepretation of how it works: For PDEformer, the solution of one variable
+    is loaded each time. Taking the case of 3 variables (n_vars == 3) for
+    example, the evaluation data sequence looks like:
+        [variable 0 of sample 0, 1 of sample 0, 2 of 0, 0 of 1, 1 of 1, 2 of 1, ...]
+    If the batch size is 3, the batched data sequence looks like
+        [(variable 0 of sample 0, 1 of sample 0, 2 of 0),
+         (0 of 1, 1 of 1, 2 of 1),
+         ...],
+    so each data batch contains the complete solution (containing all
+    variables) of a single PDE sample.
     """
     model.set_train(False)
     plot_idx = 0
@@ -266,20 +289,23 @@ def eval_model(epoch):
 def train():
     r"""Train the model."""
     # auto mixed precision
-    if use_ascend:
+    if use_fp16:
         loss_scaler = DynamicLossScaler(1024, 2, 100)
-        auto_mixed_precision(model, 'O3')
+        auto_mixed_precision(model, "O3")
 
     # Evaluation before training
     eval_error_test, l2_error_test = eval_model(epoch=0)
-    eval_error_best = eval_error_test['eval_error_mean']
-    l2_error_best = l2_error_test['l2_error_mean']
+    eval_error_best = eval_error_test["eval_error_mean"]
+    l2_error_best = l2_error_test["l2_error_mean"]
     if config.train.epochs <= 0:
         record.print(f"eval_error_mean: {eval_error_best:>7f}")
         return
 
     # loss function
-    loss_fn = LossFunction(config.train, reduce_mean=True)
+    loss_fn = LossFunction(config.train, reduce_mean=True,
+                           compute_dtype=compute_type)
+    # We can optionally penalize change of model weights during fine-tuning.
+    # dw_penalty = DeltaWeightPenalty(model, config.train.dw_penalty)
 
     # optimizer
     steps_per_epoch = dataset_train.get_dataset_size()
@@ -287,7 +313,7 @@ def train():
     optimizer = get_optimizer(lr_var, model, config.train)
 
     # gradient postprocessing
-    if use_ascend and args.distributed:
+    if args.distributed:
         grad_reducer = nn.DistributedGradReducer(optimizer.parameters)
     else:
         def grad_reducer(x):
@@ -299,9 +325,10 @@ def train():
         pred = model(*input_tuple)
         coordinate = input_tuple[-1]  # tensor
         loss = loss_fn(pred, label, coordinate)
+        # loss = loss + dw_penalty()
 
         # auto mixed precision
-        if use_ascend:
+        if use_fp16:
             loss = loss_scaler.scale(loss)
 
         return loss, pred
@@ -316,7 +343,7 @@ def train():
         (loss, pred), grads = grad_fn(input_tuple, label)
 
         # auto mixed precision
-        if use_ascend:
+        if use_fp16:
             loss = loss_scaler.unscale(loss)
             grads = loss_scaler.unscale(grads)
 
@@ -335,8 +362,10 @@ def train():
     dataset_train_size = dataset_train.get_dataset_size()
 
     # training loop
-    record.print('training...')
+    record.print("training...")
     print_interval = math.ceil(config.train.epochs / 2500)
+    # eval_epochs = np.logspace(0, np.log10(config.train.epochs), 28)
+    # eval_epochs = np.array(sorted(set(eval_epochs.astype(int))))  # uniquify
     for epoch in range(1, 1 + config.train.epochs):
         model.set_train()
         loss_all = []
@@ -359,19 +388,20 @@ def train():
             data_updater(record.print)
 
         # Evaluation
+        # if epoch in eval_epochs:
         if epoch % config.eval.interval == 0 or epoch == config.train.epochs:
             # save last checkpoint
-            record.save_ckpt(model, 'model_last.ckpt')
+            record.save_ckpt(model, "model_last.ckpt")
 
             eval_error_test, l2_error_test = eval_model(epoch=epoch)
 
             # save best checkpoint
-            if eval_error_best > eval_error_test['eval_error_mean']:
-                eval_error_best = eval_error_test['eval_error_mean']
+            if eval_error_best > eval_error_test["eval_error_mean"]:
+                eval_error_best = eval_error_test["eval_error_mean"]
 
-            if l2_error_best > l2_error_test['l2_error_mean']:
-                l2_error_best = l2_error_test['l2_error_mean']
-                record.save_ckpt(model, 'model_best.ckpt')
+            if l2_error_best > l2_error_test["l2_error_mean"]:
+                l2_error_best = l2_error_test["l2_error_mean"]
+                record.save_ckpt(model, "model_best.ckpt")
 
     record.print(f"best eval_error_mean: {eval_error_best:>7f}")
     record.print(f"best l2_error_mean: {l2_error_best:>7f}")
@@ -394,33 +424,34 @@ if __name__ == "__main__":
         context.set_context(mode=context.GRAPH_MODE)
     else:
         context.set_context(mode=context.PYNATIVE_MODE)
-    use_ascend = context.get_context(attr_key='device_target') == "Ascend"
+    use_ascend = context.get_context(attr_key="device_target") == "Ascend"
+    use_fp16 = use_ascend
     # context.set_context(max_call_depth=10000)  # for larger models
 
     # compute_type
-    compute_type = mstype.float16 if use_ascend else mstype.float32
+    compute_type = mstype.float16 if use_fp16 else mstype.float32
 
     # distributed training (data parallel)
     rank_id = None
-    if use_ascend:
-        if args.distributed:
-            init()  # enable HCCL
-            context.set_auto_parallel_context(
-                parallel_mode=ms.ParallelMode.DATA_PARALLEL,
-                gradients_mean=True)
-            rank_id = get_rank()
-            all_gather = AllGather()  # nn.cell for ops.ALLGather()
-        else:
-            context.set_context(device_id=args.device_id)
-        # context.set_context(deterministic="ON")
+    if args.distributed:
+        init()  # enable HCCL
+        context.set_auto_parallel_context(
+            parallel_mode=ms.ParallelMode.DATA_PARALLEL,
+            gradients_mean=True)
+        rank_id = get_rank()
+        all_gather = AllGather()  # nn.cell for ops.ALLGather()
+    elif use_ascend:
+        context.set_context(device_id=args.device_id)
+    # context.set_context(deterministic="ON")
 
     # load config file
-    config, config_str = load_config(args.config_file_path)
+    config = load_config(args.config_file_path)
 
     # init record
-    record = init_record(use_ascend, rank_id, args, config, config_str)
+    record = init_record(rank_id, args, config)
 
-    # dataset
+    # dataset; note that this may change model config options for single_pde
+    # data by automatically calling 'dataset.add_model_config_(...)'
     record.print(f"Loading {config.data.type} data...")
     (dataset_train, data_updater, train_iter_dict, test_iter_dict) = load_dataset(config)
 

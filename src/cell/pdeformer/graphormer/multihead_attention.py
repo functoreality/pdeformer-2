@@ -7,6 +7,8 @@ from mindspore import dtype as mstype
 from mindspore import Tensor, nn, ops
 from mindspore.common.initializer import initializer, XavierUniform, Zero, Uniform
 
+from ...env import ENABLE_DROPOUT
+
 
 class MultiheadAttention(nn.Cell):
     r"""
@@ -175,7 +177,8 @@ class MultiheadAttention(nn.Cell):
         attn_weights = self.cast(attn_weights, mstype.float32)
         attn_probs = ops.softmax(attn_weights, axis=-1)  # [n_graph*num_heads, n_node, n_node]
         attn_probs = self.cast(attn_probs, self.compute_dtype)
-        # attn_probs = self.dropout_module(attn_probs)  # [n_graph*num_heads, n_node, n_node]
+        if ENABLE_DROPOUT:
+            attn_probs = self.dropout_module(attn_probs)  # [n_graph*num_heads, n_node, n_node]
 
         # [n_graph*num_heads, n_node, n_node] x [n_graph*num_heads, n_node, head_dim]
         # -> [n_graph*num_heads, n_node, head_dim]

@@ -1,0 +1,41 @@
+# train with a single NPU
+model_type: fno2d  # {pdeformer, deeponet, cnn_deeponet, unet2d, fno2d, fno3d}
+fno3d:  # applies to {unet2d, fno2d, fno3d}
+  modes: 12
+  channels: 20
+  depths: 4
+data:
+  path: ../data_download  # or any path/to/your/data_download
+  type: single_pde
+  num_workers: 8
+  num_samples_per_file:
+    train: 20
+    test: 100
+  pde_dag:
+    max_n_scalar_nodes: 128
+    max_n_function_nodes: 8
+    disconn_attn_bias: -inf
+  single_pde:
+    param_name: ins_fname
+    train: [dedalus_v5.1_Baseline2D_INS_icA_npY_noP_k1e-03L0.01_seed0]
+train:
+  total_batch_size: 5
+  num_txyz_samp_pts: -1  # has no effect for {unet2d, fno2d, fno3d}
+  lr_init: 1.e-4
+  epochs: 1000
+  loss:
+    type: RMSE
+    normalize: True
+    normalize_eps: 0.05
+  optimizer: Adam
+  weight_decay: 0.0
+  lr_scheduler:
+    type: cos
+    enable_warmup: True
+    warmup_epochs: 10
+  grad_clip_value: 1  # -1 means no gradient clipping
+eval:
+  total_batch_size: 1
+  interval: 50
+  plot_num_per_type: 0
+record_dir: exp/benchmark_data/ins_pipe/train-20/fno2d

@@ -45,6 +45,7 @@ data:
     max_n_function_nodes: 5
     disconn_attn_bias: '-inf'
 inverse:
+  data_source: multi_pde
   pde_type: wave
   data_file: dedalus_v5.1_inv_Wave2D_inhom_cU1_k1e-02_4_num10_samples100_fwi_seed2
   pde_cases: 10
@@ -71,6 +72,13 @@ inverse:
     mixed:
       weight: 0.3
   func:
+    # node_function order: domain_sdf, u_ic, ut_ic, a(r), s(r), mu(r), bc_functions..
+    # (see codes of src.data.multi_pde.pde_types.DiffConvecReac2DInfo.pde_nodes)
+    # In current dataset: Wave rather than DCR (must have ut_ic, may have mu(r)),
+    # periodic (no domain_sdf, bc_functions), inhomogeneous (must have a(r)).
+    # Inverse Wave dataset forces field-valued s(r) (so it must exist). So
+    # final node_function order is: u_ic, ut_ic, a(r), s(r), [mu(r)].
+    # We recover a(r) with position id=2.
     function_node_id: 2
     function_regularize:
       type: L2

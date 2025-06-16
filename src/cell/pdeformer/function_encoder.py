@@ -1,12 +1,15 @@
 r"""Function Encoder."""
-from typing import Union, List
+from typing import Union, List, Optional
 import math
+from abc import abstractmethod
 from omegaconf import DictConfig
+import numpy as np
 from mindspore import nn, Tensor, ops
 from mindspore import dtype as mstype
 
 from ..basic_block import MLP
 from .inr_with_hypernet import Siren, MFNNet, PolyINR
+
 
 class DeepSetFuncEncoder(nn.Cell):
     r"""
@@ -179,7 +182,7 @@ class PerBranchFuncEncoder(nn.Cell):
         self.function_encoder_list = nn.CellList([func_enc_cls(
             dim_in, dim_out, dim_hidden // num_branches, num_layers,
             point_fn[i_branch], compute_dtype=compute_dtype,
-            ) for i_branch in range(num_branches)])
+        ) for i_branch in range(num_branches)])
 
     def construct(self, x: Tensor) -> Tensor:
         '''
@@ -410,18 +413,92 @@ class Patched2DConvFuncEncoder(nn.Cell):
         return x
 
 
-class Conv2dFuncEncoder(nn.Cell):
+class Conv2dFuncEncoderBase(nn.Cell):
     r"""CNN Encoder for functions defined on two-dimensional uniform grids."""
 
     def __init__(self,
-                 in_channels: int = 1,
+                 in_dim: int = 5,
                  out_dim: int = 256,
                  resolution: int = 128,
+                 input_txyz: bool = True,
+                 keep_nchw: bool = True,
+                 pre_gaussian_sizes: Optional[List[int]] = None,
                  compute_dtype=mstype.float16):
         super().__init__()
-        self.in_channels = in_channels
         self.resolution = resolution
+        self.input_txyz = input_txyz
+        self.keep_nchw = keep_nchw
 
+        self.cast = ops.Cast()
+
+        if pre_gaussian_sizes is None:
+            pre_gaussian_sizes = []
+        if pre_gaussian_sizes and pre_gaussian_sizes[-1] < 0:
+            raise ValueError("The last element of 'pre_gaussian_sizes' "
+                             f"({pre_gaussian_sizes}) should be positive.")
+        self.pre_gaussians = [self._gaussian_filter_2d(abs(kernel_size))
+                              for kernel_size in pre_gaussian_sizes]
+        self.gaussian_flags = [kernel_size > 0
+                               for kernel_size in pre_gaussian_sizes]
+
+        if input_txyz:
+            in_channels = in_dim
+        else:
+            in_channels = 1
+        in_channels += np.sum(self.gaussian_flags, dtype=int).item()
+        # Output shape: [bsz, out_dim, H/64, W/64].
+        self.net = self.get_net(in_channels, out_dim, compute_dtype)
+
+    @staticmethod
+    @abstractmethod
+    def get_net(in_channels: int, out_dim: int, compute_dtype) -> nn.Cell:
+        r"""Get specific CNN network."""
+
+    def construct(self, x: Tensor) -> Tensor:
+        r"""
+        Args:
+            x (Tensor): shape is [bsz, num_points_ic, dim_in], dim_in=5 or 6.
+        """
+        bsz, _, dim_in = x.shape
+        dtype = x.dtype
+        x = x.reshape(bsz, self.resolution, self.resolution, dim_in)
+        x = x.transpose((0, 3, 1, 2))  # NHWC -> NCHW
+        f_values = x[:, -1:]  # [bsz, 1, H, W]
+        if self.input_txyz:
+            net_in = [x]
+        else:
+            net_in = [f_values]
+        for flag, gauss_filter in zip(self.gaussian_flags, self.pre_gaussians):
+            gauss_filter = self.cast(gauss_filter, dtype)
+            f_values = ops.conv2d(f_values, gauss_filter, pad_mode="same")
+            # In 2D, conv by a kernel with size 2s once is less efficient than
+            # conv by s twice. Therefore, we use smaller kernel_size, apply
+            # gauss_filter for more times, and ignore some intermediate results.
+            if flag:
+                net_in.append(f_values)
+        net_in = ops.cat(net_in, axis=1)  # [bsz, in_channels, H, W]
+        x = self.net(net_in)
+        if not self.keep_nchw:
+            x = x.transpose((0, 2, 3, 1))  # NCHW -> NHWC
+        return x  # [bsz, 2, 2, out_dim].
+
+    @staticmethod
+    def _gaussian_filter_2d(kernel_size: int, n_sigma: float = 1.5) -> Tensor:
+        r"""Get a 2D Gaussian filter of shape [1, 1, kernel_size, kernel_size]."""
+        coord = np.linspace(-n_sigma, n_sigma, kernel_size, dtype=np.float32)
+        gauss_filter = np.exp(-coord**2 / 2)
+        gauss_filter /= gauss_filter.sum()  # normalize
+        gauss_filter = np.outer(gauss_filter, gauss_filter)  # [H] -> [H, W=H]
+        gauss_filter = gauss_filter[np.newaxis, np.newaxis]  # [1, 1, H, W]
+        gauss_filter = Tensor(gauss_filter)  # NDArray -> Tensor
+        return gauss_filter
+
+
+class Conv2dFuncEncoder(Conv2dFuncEncoderBase):
+    r"""CNN Encoder for functions defined on two-dimensional uniform grids."""
+
+    @staticmethod
+    def get_net(in_channels: int, out_dim: int, compute_dtype) -> nn.Cell:
         layers = []
         layers.append(nn.Conv2d(
             in_channels, 64, kernel_size=3, stride=2, has_bias=True, weight_init='HeUniform',
@@ -448,38 +525,19 @@ class Conv2dFuncEncoder(nn.Cell):
         layers.append(nn.Dense(
             512, out_dim, has_bias=True, weight_init='HeUniform',
             bias_init="zeros").to_float(compute_dtype))  # [bsz, out_dim]
-        self.net = nn.SequentialCell(layers)
-
-    def construct(self, x: Tensor) -> Tensor:
-        '''
-        Args:
-            x (Tensor): shape is [bsz, num_points_ic, dim_in], dim_in=5 or 6.
-        '''
-        bsz, _, dim_in = x.shape
-        x = x.reshape(bsz, self.resolution, self.resolution, dim_in)
-        x = x[:, :, :, -self.in_channels:]
-        x = x.transpose((0, 3, 1, 2))  # NHWC -> NCHW
-        return self.net(x)
+        net = nn.SequentialCell(layers)
+        return net
 
 
-class Conv2dFuncEncoderV2(nn.Cell):
+class Conv2dFuncEncoderV2(Conv2dFuncEncoderBase):
     r"""Smaller CNN Encoder for functions defined on two-dimensional uniform grids."""
 
-    def __init__(self,
-                 in_channels: int = 1,
-                 out_dim: int = 256,
-                 resolution: int = 128,
-                 cnn_keep_nchw: bool = True,
-                 compute_dtype=mstype.float16):
-        super().__init__()
-        self.in_channels = in_channels
-        self.resolution = resolution
-        self.cnn_keep_nchw = cnn_keep_nchw
-
+    @staticmethod
+    def get_net(in_channels: int, out_dim: int, compute_dtype) -> nn.Cell:
         get_activation_fn = nn.GELU  # nn.ReLU
         conv_kwargs = dict(kernel_size=3, stride=2, has_bias=True,
                            weight_init='HeUniform', bias_init="zeros")
-        self.net = nn.SequentialCell([
+        net = nn.SequentialCell([
             nn.Conv2d(in_channels, 16, **conv_kwargs).to_float(compute_dtype),
             get_activation_fn(),  # [bsz, 16, H/2, W/2]
             nn.Conv2d(16, 32, **conv_kwargs).to_float(compute_dtype),
@@ -492,48 +550,25 @@ class Conv2dFuncEncoderV2(nn.Cell):
             get_activation_fn(),  # [bsz, 256, H/32, W/32]
             nn.Conv2d(256, out_dim, **conv_kwargs).to_float(compute_dtype),
         ])  # Output shape: [bsz, out_dim, H/64, W/64].
-
-    def construct(self, x: Tensor) -> Tensor:
-        '''
-        Args:
-            x (Tensor): shape is [bsz, num_points_ic, dim_in], dim_in=5 or 6.
-        '''
-        bsz, _, _ = x.shape
-        x = x[:, :, -self.in_channels:]  # required when input_txyz == False
-        x = x.reshape(bsz, self.resolution, self.resolution, self.in_channels)
-        x = x.transpose((0, 3, 1, 2))  # NHWC -> NCHW
-        x = self.net(x)  # [bsz, out_dim, 2, 2].
-        if not self.cnn_keep_nchw:  # for backward compatibility of ckpt
-            x = x.transpose((0, 2, 3, 1))  # NCHW -> NHWC
-        return x  # [bsz, 2, 2, out_dim].
+        return net
 
 
-class Conv2dFuncEncoderV3(nn.Cell):
+class Conv2dFuncEncoderV3(Conv2dFuncEncoderBase):
     r"""Smaller CNN Encoder for functions defined on two-dimensional uniform grids."""
 
-    def __init__(self,
-                 in_channels: int = 1,
-                 out_dim: int = 256,
-                 resolution: int = 128,
-                 cnn_keep_nchw: bool = True,
-                 compute_dtype=mstype.float16):
-        super().__init__()
-        self.in_channels = in_channels
-        self.resolution = resolution
-        self.cnn_keep_nchw = cnn_keep_nchw
-
+    @staticmethod
+    def get_net(in_channels: int, out_dim: int, compute_dtype) -> nn.Cell:
         get_activation_fn = nn.ReLU
         conv_kwargs = dict(kernel_size=4, stride=4, has_bias=True,
                            weight_init='HeUniform', bias_init="zeros")
-        self.net = nn.SequentialCell([
+        net = nn.SequentialCell([
             nn.Conv2d(in_channels, 32, **conv_kwargs).to_float(compute_dtype),
             get_activation_fn(),  # [bsz, 32, H/4, W/4]
             nn.Conv2d(32, 128, **conv_kwargs).to_float(compute_dtype),
             get_activation_fn(),  # [bsz, 128, H/16, W/16]
             nn.Conv2d(128, out_dim, **conv_kwargs).to_float(compute_dtype),
         ])  # Output shape: [bsz, out_dim, H/64, W/64].
-
-    construct = Conv2dFuncEncoderV2.construct
+        return net
 
 
 def get_function_encoder(config_fenc: DictConfig,
@@ -608,34 +643,23 @@ def get_function_encoder(config_fenc: DictConfig,
             config_fenc.num_branches,
             compute_dtype=compute_dtype
         )
-    elif function_encoder_type == "conv2d":
-        resolution = config_fenc.get("resolution", 128)
-        if config_fenc.get("conv2d_input_txyz", False):
-            in_channels = dim_in
-        else:
-            in_channels = 1
-        function_encoder = Conv2dFuncEncoder(
-            in_channels,
-            dim_out * config_fenc.num_branches,
-            resolution,
-            compute_dtype=compute_dtype)
-    elif function_encoder_type in "cnn2dv2 cnn2dv3".split():
-        resolution = config_fenc.get("resolution", 128)
-        cnn_keep_nchw = config_fenc.get("cnn_keep_nchw", True)
-        if config_fenc.get("conv2d_input_txyz", False):
-            in_channels = dim_in
-        else:
-            in_channels = 1
+    elif function_encoder_type in "conv2d cnn2dv2 cnn2dv3".split():
+        kwargs = {"resolution": config_fenc.get("resolution", 128),
+                  "input_txyz": config_fenc.get("conv2d_input_txyz", False),
+                  "keep_nchw": config_fenc.get("cnn_keep_nchw", True),
+                  "pre_gaussian_sizes": config_fenc.get("cnn_gaussian_sizes", []),
+                  "compute_dtype": compute_dtype}
         if config_fenc.num_branches != 4:
             raise NotImplementedError
-        if function_encoder_type == "cnn2dv2":
-            function_encoder = Conv2dFuncEncoderV2(
-                in_channels, dim_out, resolution, cnn_keep_nchw,
-                compute_dtype=compute_dtype)
-        else:
-            function_encoder = Conv2dFuncEncoderV3(
-                in_channels, dim_out, resolution, cnn_keep_nchw,
-                compute_dtype=compute_dtype)
+        if function_encoder_type == "conv2d":
+            function_encoder = Conv2dFuncEncoder(
+                dim_in,
+                dim_out * config_fenc.num_branches,
+                **kwargs)
+        elif function_encoder_type == "cnn2dv2":
+            function_encoder = Conv2dFuncEncoderV2(dim_in, dim_out, **kwargs)
+        elif function_encoder_type == "cnn2dv3":
+            function_encoder = Conv2dFuncEncoderV3(dim_in, dim_out, **kwargs)
     else:
         raise NotImplementedError(
             "'function_encoder_type' should be in ['deepset', 'weighted_deepset', 'patched'], "

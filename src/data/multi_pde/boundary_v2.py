@@ -51,7 +51,10 @@ class EdgeBoundaryConditionV2(PDETermBase):
         self.bc_type = hdf5_group["bc_type"][idx_pde]
         self.alpha = ConstOrField(hdf5_group["alpha"], idx_pde, keep_all_coef)
         beta = ConstOrField(hdf5_group["beta"], idx_pde, keep_all_coef)
-        self.beta2 = -beta  # negation via custom __neg__ functions
+        # Negation via custom __neg__ method. The data is generated according
+        # to B[u] = \beta, and the DAG follows the form B[u] + \beta_2 = 0,
+        # hence negation is required.
+        self.beta2 = -beta
 
     @property
     def full_type(self) -> str:

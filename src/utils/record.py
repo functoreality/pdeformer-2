@@ -10,7 +10,7 @@ from argparse import Namespace
 
 import pickle
 import pandas as pd
-from omegaconf import DictConfig
+from omegaconf import OmegaConf, DictConfig
 from mindspore import SummaryRecord, Tensor, save_checkpoint, nn
 
 from .visual import plot_l2_error_and_epochs
@@ -235,21 +235,17 @@ class Record:
             self.dic[key] = [value]
 
 
-def init_record(use_ascend: bool,
-                rank_id: int,
+def init_record(rank_id: int,
                 args: Namespace,
                 config: DictConfig,
-                config_str: str,
                 inverse_problem: bool = False) -> Record:
     r'''
     Initialize the record object.
 
     Args:
-        use_ascend (bool): Whether to use Ascend.
         rank_id (int): The rank id of the current process.
         args (dict): The arguments of the current program.
         config (dict): The configuration of the current program.
-        config_str (str): The string of the configuration.
         inverse_problem (bool): Whether to enable recording for the inverse
             problem. Default: False.
 
@@ -260,13 +256,13 @@ def init_record(use_ascend: bool,
         distributed = args.distributed
     else:
         distributed = False
-    enable_record = not (use_ascend and distributed and rank_id != 0)
+    enable_record = not (distributed and rank_id > 0)
     record = Record(config.record_dir,
                     enable_record=enable_record,
                     enable_summary=False,
                     inverse_problem=inverse_problem)
     # copy the config file to the record directory
     record.copy_file(args.config_file_path, "config.yaml")
-    record.print('Configuration:\n' + config_str)
-    record.print(f"PID: {os.getpid()}, use Ascend: {use_ascend}")
+    record.print("Configuration:\n" + OmegaConf.to_yaml(config))
+    record.print(f"PID: {os.getpid()}, device: {args.device_target}")
     return record

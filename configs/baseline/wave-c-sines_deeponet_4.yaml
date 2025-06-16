@@ -1,0 +1,14 @@
+# train with a single NPU
+base_config: configs/baseline/ins-tracer_cnn-deeponet_900.yaml
+model_type: deeponet  # {pdeformer, deeponet, cnn_deeponet, unet2d, fno2d, fno3d}
+data:
+  num_samples_per_file:
+    train: 4
+  single_pde:
+    param_name: rigno_wave
+    train: [100]
+train:
+  total_batch_size: 2
+eval:
+  total_batch_size: 1
+record_dir: exp/benchmark_data/wave_c_sines/train-4/deeponet

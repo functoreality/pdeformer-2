@@ -6,6 +6,7 @@ from mindspore import Tensor, nn, ops
 
 from .graphormer_layer import GraphNodeFeature, GraphAttnBias
 from .graphormer_encoder_layer import GraphormerEncoderLayer
+from ...env import ENABLE_DROPOUT
 
 
 class GraphormerEncoder(nn.Cell):
@@ -182,7 +183,8 @@ class GraphormerEncoder(nn.Cell):
         if self.emb_layer_norm is not None:
             x = self.emb_layer_norm(x)
 
-        # x = self.dropout_module(x)
+        if ENABLE_DROPOUT:
+            x = self.dropout_module(x)
 
         # account for padding while computing the representation
         x = x.transpose(1, 0, 2)  # [n_graph, n_node, embed_dim] -> [n_node, n_graph, embed_dim]

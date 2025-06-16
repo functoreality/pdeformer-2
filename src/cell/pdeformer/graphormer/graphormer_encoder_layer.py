@@ -6,6 +6,7 @@ from mindspore import Tensor, nn
 
 from ...basic_block import UniformInitDense
 from .multihead_attention import MultiheadAttention
+from ...env import ENABLE_DROPOUT
 
 
 def get_activation_fn(activation_fn: str = "gelu") -> nn.Cell:
@@ -112,7 +113,8 @@ class GraphormerEncoderLayer(nn.Cell):
             key_padding_mask=attn_padding_mask,
             attn_mask=attn_mask,
         )  # [n_node, n_graph, embed_dim]
-        # x = self.dropout_module(x)  # [n_node, n_graph, embed_dim]
+        if ENABLE_DROPOUT:
+            x = self.dropout_module(x)  # [n_node, n_graph, embed_dim]
         x = residual + x  # [n_node, n_graph, embed_dim]
         if not self.pre_layernorm:
             x = self.attn_layer_norm(x)  # [n_node, n_graph, embed_dim]
@@ -122,9 +124,11 @@ class GraphormerEncoderLayer(nn.Cell):
         if self.pre_layernorm:
             x = self.ffn_layer_norm(x)  # [n_node, n_graph, embed_dim]
         x = self.activation_fn(self.fc1(x))  # [n_node, n_graph, ffn_embed_dim]
-        # x = self.activation_dropout_module(x)  # [n_node, n_graph, ffn_embed_dim]
+        if ENABLE_DROPOUT:
+            x = self.activation_dropout_module(x)  # [n_node, n_graph, ffn_embed_dim]
         x = self.fc2(x)  # [n_node, n_graph, embed_dim]
-        # x = self.dropout_module(x)  # [n_node, n_graph, embed_dim]
+        if ENABLE_DROPOUT:
+            x = self.dropout_module(x)  # [n_node, n_graph, embed_dim]
         x = residual + x  # [n_node, n_graph, embed_dim]
         if not self.pre_layernorm:
             x = self.ffn_layer_norm(x)  # [n_node, n_graph, embed_dim]

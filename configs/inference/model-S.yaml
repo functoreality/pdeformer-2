@@ -1,3 +1,4 @@
+# configuration file for PDEformer-2-small that is not included in the paper
 base_config: configs/inference/model-L.yaml
 model:
   graphormer:

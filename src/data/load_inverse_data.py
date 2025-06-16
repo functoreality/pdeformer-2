@@ -11,9 +11,10 @@ from mindspore import Tensor
 from .env import float_dtype
 from .pde_dag import DAGInfoTuple, PfDataTuple
 from .multi_pde.pde_types import pde_info_cls_dict
+from .single_pde.basics import pde_type_class_dict
 
 
-def get_inverse_data(config: DictConfig, idx_pde: int) -> Tuple:
+def multi_pde_inverse_data(config: DictConfig, idx_pde: int) -> Tuple:
     r"""
     Generate the data tuple of one PDE for the inverse problems (recovery of
     scalar coefficients or coefficient fields), including multiple initial
@@ -85,8 +86,64 @@ def get_inverse_data(config: DictConfig, idx_pde: int) -> Tuple:
     data_info = {"pde_latex": pde_latex, "coef_dict": coef_dict,
                  "idx_pde": idx_pde,  # "n_xyz": n_x * n_y * n_z,
                  "n_t_grid": n_t, "n_x_grid": n_x,
-                 "n_y_grid": n_y, "n_z_grid": n_z,}
+                 "n_y_grid": n_y, "n_z_grid": n_z}
     return data_tuple, data_info
+
+
+def single_pde_inverse_data(config: DictConfig, idx_pde: int) -> Tuple:
+    r"""Get data tuple of one specific PDE for inverse problems."""
+    num_samples = config.inverse.num_samples_per_pde  # int
+    dag_tuple = DAGInfoTuple([], [], [], [], [], [], [])
+    if config.inverse.pde_type not in ["eit_seed", "pdegym_wave"]:
+        raise NotImplementedError
+    pde_type_cls = pde_type_class_dict[config.inverse.pde_type]
+    pde_param = config.inverse.data_file
+    input_dataset = pde_type_cls(config, pde_param)
+    input_dataset.post_init(True)
+    idx_var = 0
+    u_label = []
+    for i_sample in range(num_samples):
+        input_field, input_scalar, _, u_label_temp = input_dataset[idx_pde, i_sample]
+        pde = input_dataset.get_pde_dag_info(idx_pde, idx_var, input_field, input_scalar)
+        dag_tuple.node_type.append(pde[0])
+        dag_tuple.node_scalar.append(pde[1])
+        dag_tuple.node_function.append(pde[2])
+        dag_tuple.in_degree.append(pde[3])
+        dag_tuple.out_degree.append(pde[4])
+        dag_tuple.attn_bias.append(pde[5])
+        dag_tuple.spatial_pos.append(pde[6])
+        u_label.append(u_label_temp)
+    u_label = np.array(u_label)
+    txyz_coord = input_dataset.txyz_coord
+    n_t, n_x, n_y, n_z, _ = txyz_coord.shape
+    txyz_coord = txyz_coord.astype(float_dtype).reshape((1, -1, 4))
+    txyz_coord = np.repeat(txyz_coord, num_samples, axis=0)
+    # [num_samples, n_t, n_x, n_y] -> [num_samples, n_txyz, 1]
+    u_label = u_label.reshape((num_samples, -1, 1)).astype(float_dtype)
+    # Tuple[List[NDArray]] -> Tuple[NDArray]
+    dag_tuple = DAGInfoTuple(*(np.array(arr_list) for arr_list in dag_tuple))
+    # data_tuple
+    data_tuple = PfDataTuple(*dag_tuple, txyz_coord, u_label)
+    data_tuple = PfDataTuple(*(Tensor(array) for array in data_tuple))
+
+    pde_latex = input_dataset.pde_latex
+    data_info = {"pde_latex": pde_latex, "coef_dict": {},
+                 "idx_pde": idx_pde,  # "n_xyz": n_x * n_y * n_z,
+                 "n_t_grid": n_t, "n_x_grid": n_x,
+                 "n_y_grid": n_y, "n_z_grid": n_z}
+    return data_tuple, data_info
+
+
+def get_inverse_data(config: DictConfig, idx_pde: int) -> Tuple:
+    r"""
+    Generate the data tuple of one PDE for the inverse problems (recovery of
+    scalar coefficients or coefficient fields).
+    """
+    if config.inverse.data_source == "multi_pde":
+        return multi_pde_inverse_data(config, idx_pde)
+    if config.inverse.data_source == "single_pde":
+        return single_pde_inverse_data(config, idx_pde)
+    raise NotImplementedError
 
 
 def add_noise(u_label: NDArray[float],
@@ -132,13 +189,16 @@ def get_observed_indices(batch_size: int,
     if xyz_obs_type == "all":
         n_xyz_obs_pts = n_xyz
     elif xyz_obs_type == "equispaced":
-        # should be equispaced along each axis rather than the concatenated axis
         stride = n_xyz // n_xyz_obs_pts
         obs_inds = obs_inds[:, :, ::stride]
         obs_inds = obs_inds[:, :, :n_xyz_obs_pts]
+        # should be equispaced along each axis rather than the concatenated axis
         raise NotImplementedError
     elif xyz_obs_type == "last":
         obs_inds = obs_inds[:, :, -n_xyz_obs_pts:]
+        # Note that more practical settings should use 'last' only along one
+        # axis, and possibly random along the remaining axis. However, the
+        # current implementation only considers the concatenated axis.
         raise NotImplementedError
     elif xyz_obs_type == "random":
         x_inds = np.random.choice(n_xyz, size=n_xyz_obs_pts, replace=False)

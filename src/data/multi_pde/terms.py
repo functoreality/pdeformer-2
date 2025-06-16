@@ -783,9 +783,9 @@ class InhomSpatialOrder2Term(PDETermBase):
             raise TypeError("Input 'coord_dict' should be given.")
 
         if self.diff_type == self.FACTORED_FORM:
-            c_or_c2 = self.field
-        else:
             c_or_c2 = np.sqrt(self.field)
+        else:
+            c_or_c2 = self.field
 
         if self.LG_COEF:
             c_or_c2 = pde.exp10(pde.new_coef_field(np.log10(c_or_c2),

@@ -37,8 +37,8 @@ def parse_args():
                         help="The target device to run, support 'Ascend', 'GPU', 'CPU'")
     parser.add_argument("--device_id", type=int, default=0,
                         help="ID of the target device")
-    parser.add_argument('--distributed', action='store_true',
-                        help='enable distributed training (data parallel)')
+    parser.add_argument("--distributed", action="store_true",
+                        help="enable distributed training (data parallel)")
     parser.add_argument("--config_file_path", "-c", type=str, required=True,
                         help="Path of the configuration YAML file.")
     return parser.parse_args()
@@ -230,7 +230,7 @@ def inverse(model: nn.Cell) -> None:
                          config.inverse.func.lr_scheduler.lr_decay)
 
     # auto mixed precision
-    if use_ascend:
+    if use_fp16:
         loss_scaler = DynamicLossScaler(1024, 2, 100)
         auto_mixed_precision(model, 'O3')
 
@@ -269,7 +269,7 @@ def inverse(model: nn.Cell) -> None:
             loss = loss_fn(pred, label, coordinate) + regularization_loss()  # pylint: disable=W0640
 
             # auto mixed precision
-            if use_ascend:
+            if use_fp16:
                 loss = loss_scaler.scale(loss)
 
             return loss, pred
@@ -287,7 +287,7 @@ def inverse(model: nn.Cell) -> None:
             grads = grad_reducer(grads)  # pylint: disable=W0640
 
             # auto mixed precision
-            if use_ascend:
+            if use_fp16:
                 loss = loss_scaler.unscale(loss)
                 grads = loss_scaler.unscale(grads)
 
@@ -357,15 +357,16 @@ if __name__ == "__main__":
     else:
         context.set_context(mode=context.PYNATIVE_MODE)
     use_ascend = context.get_context(attr_key='device_target') == "Ascend"
+    use_fp16 = use_ascend
 
     # compute_type
-    compute_type = mstype.float16 if use_ascend else mstype.float32
+    compute_type = mstype.float16 if use_fp16 else mstype.float32
 
     # load config file
-    config, config_str = load_config(args.config_file_path)
+    config = load_config(args.config_file_path)
 
     # record
-    record = init_record(use_ascend, 0, args, config, config_str, inverse_problem=True)
+    record = init_record(0, args, config, inverse_problem=True)
 
     # model
     model_ = get_model(config, record, compute_type)
