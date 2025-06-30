@@ -47,6 +47,7 @@ data:
 inverse:
   data_source: multi_pde
   pde_type: wave
+  # Data can be downloaded at: data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/inv/dedalus_v5.1_inv_Wave2D_inhom_cU1_k1e-02_4_num10_samples100_fwi_seed2.hdf5
   data_file: dedalus_v5.1_inv_Wave2D_inhom_cU1_k1e-02_4_num10_samples100_fwi_seed2
   pde_cases: 10
   num_samples_per_pde: 100

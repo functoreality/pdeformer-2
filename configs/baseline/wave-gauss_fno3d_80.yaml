@@ -8,6 +8,7 @@ data:
     train: 80
   single_pde:
     param_name: pdegym_wave
+    # Data can be downloaded at: https://huggingface.co/datasets/camlab-ethz/Wave-Gauss
     train: [gauss-norm]
 train:
   total_batch_size: 16

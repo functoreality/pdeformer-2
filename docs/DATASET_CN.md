@@ -1,9 +1,10 @@
 # 数据集文件
 
-## 预训练
+为 PDEformer-2 生成的数据集和相应的代码可以在 [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2) 获取。
+论文中的实验还涉及的两个公开数据集是 [PDEgym Wave-Gauss](https://huggingface.co/datasets/camlab-ethz/Wave-Gauss)
+和 [RIGNO Wave-C-Sines](https://zenodo.org/records/14765453/files/Wave-C-Sines.nc)。
 
-我们计划发布预训练数据集。
-然而，由于数据集较大（约 40TB），发布过程可能会较为复杂，并需要一些时间。
+## 预训练
 
 以下是我们数据集中使用的 PDE 形式的描述：
 

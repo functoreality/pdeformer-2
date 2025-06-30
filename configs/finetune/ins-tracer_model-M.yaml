@@ -2,6 +2,7 @@ base_config: configs/finetune/pdebench-swe-rdb_model-M.yaml
 model:
   load_ckpt: path/to/your/downloaded/model-M.ckpt  # set to "none" for from-scratch
 data:
+  path: ../data_download  # or any path/to/your/data_download
   num_samples_per_file:
     train: 240
   pde_dag:
@@ -9,6 +10,7 @@ data:
     max_n_function_nodes: 8
   single_pde:
     param_name: ins_coupled_fname  # {ins_coupled_fname (regular), ins_c_convec (equivalent), ins_c_incomplete, ins_c_unknown, ins_c_wrong}
+    # Data can be downloaded at: https://data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/Baseline2D/dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0.hdf5
     train: [dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0]
 train:
   total_batch_size: 80

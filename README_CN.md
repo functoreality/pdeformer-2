@@ -124,7 +124,7 @@ u_pred = infer_plot_2d(model, pde_dag, x_plot, y_plot)
 
 更多的示例见 [PDEformer_inference_CN.ipynb](PDEformer_inference_CN.ipynb)。
 
-### PDEBench 微调
+### 微调
 
 PDEformer-2 通过预训练掌握了多种不同类型 PDE 的正问题求解能力。
 这些多样 PDE 求解任务背后的共享知识为 PDEformer-2 快速适应新方程的求解打下了良好的基础。
@@ -160,6 +160,38 @@ data:
 config_path=configs/finetune/pdebench-swe-rdb_model-M.yaml
 python train.py -c $config_path --no_distributed --device_id 0
 ```
+
+用户也可以使用其他数据来进行微调。
+例如，如果使用论文中所涉及的 INS-Tracer 方程数据，以上第 (2) 步要下载的数据文件变成
+[dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0.hdf5](https://data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/Baseline2D/dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0.hdf5)
+（关于数据文件下载的更多说明请见 [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2) 仓库），
+而步骤 (3) 需要修改的配置文件则是 [configs/finetune/ins-tracer_model-M.yaml](configs/finetune/ins-tracer_model-M.yaml)。
+步骤 (4) 使用单机 8 卡微调的命令如下：
+
+```bash
+# path to the config file
+config_path=configs/finetune/ins-tracer_model-M.yaml
+
+# train model with 8 Ascend NPUs
+mpirun -n 8 --output-filename log_output --merge-stderr-to-stdout \
+    python train.py --config_file_path $config_path
+```
+
+### 预训练
+
+PDEformer-2 预训练使用的数据集和相应的数据生成代码可以在 [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2) 获取。
+由于完整的预训练数据集规模过大，这里展示的预训练过程仅使用其中的少量数据。
+按如下步骤进行：
+
+* (1) 使用 [这个 Bash 脚本](https://github.com/functoreality/pdefoundry-2/blob/main/download/pdefoundry2_small_data.sh) 下载小规模预训练所需的数据集。
+* (2) 调整配置文件 [configs/pretrain/model-L_small-data.yaml](configs/pretrain/model-L_small-data.yaml)，指定数据集所在的文件夹（`data.path` 参数）。
+* (3) 通过运行如下命令来运行单机 8 卡的并行预训练：
+
+```bash
+bash scripts/train_distributed.sh
+```
+
+### 反问题
 
 ## 贡献者
 

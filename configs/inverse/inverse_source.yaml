@@ -47,6 +47,7 @@ data:
 inverse:
   data_source: multi_pde
   pde_type: dcr
+  # Data can be downloaded at: data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/inv/dedalus_v5.1_inv_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1.hdf5
   data_file: dedalus_v5.1_inv_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
   pde_cases: 40
   num_samples_per_pde: 25

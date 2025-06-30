@@ -6,5 +6,6 @@ data:
     train: 1
   single_pde:
     param_name: sinegordon_fname
+    # Data can be downloaded at: data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/Baseline2D/dedalus_v5.1_Baseline2D_SineGordon_k1e-02_4_seed0.hdf5
     train: [dedalus_v5.1_Baseline2D_SineGordon_k1e-02_4_seed0]
 record_dir: exp/benchmark_data/sine_gordon/train-1/unet2d

@@ -17,6 +17,7 @@ data:
     disconn_attn_bias: -inf
   single_pde:
     param_name: ins_fname
+    # Data can be downloaded at: data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/Baseline2D/dedalus_v5.1_Baseline2D_INS_icA_npY_noP_k1e-03L0.01_seed0.hdf5
     train: [dedalus_v5.1_Baseline2D_INS_icA_npY_noP_k1e-03L0.01_seed0]
 train:
   total_batch_size: 5

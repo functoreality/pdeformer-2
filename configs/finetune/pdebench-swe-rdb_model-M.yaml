@@ -53,6 +53,7 @@ data:
     param_name: rdb
     regularize_ratio: 0.
     train: [1]
+    # Data can be downloaded at: https://darus.uni-stuttgart.de/api/access/datafile/133021
 train:
   total_batch_size: 1
   num_txyz_samp_pts: 8192

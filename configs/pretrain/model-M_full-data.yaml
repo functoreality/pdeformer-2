@@ -4,6 +4,7 @@ model:  # PDEformer-2-fast
     dim_hidden: 256
 data:
   multi_pde:
+    # Data can be downloaded using: https://github.com/functoreality/pdefoundry-2/blob/main/download/pdefoundry2_train.sh
     train:
       dcr_base:
         format: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed%d
@@ -107,6 +108,7 @@ data:
         format: fenicsx_v2.1_ElasticSteady2D_iso_cU1_k5e-01_2_nf3_ntf1_ftype1_scatFalse_N128_seed%d
         begin: 1
         num: 255
+    # Data can be downloaded using: https://github.com/functoreality/pdefoundry-2/blob/main/download/pdefoundry2_test.sh
     test:
       dcr_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1
       dcrLgK_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed1

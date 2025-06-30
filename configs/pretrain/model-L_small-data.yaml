@@ -49,6 +49,7 @@ data:
     max_n_function_nodes: 16
     disconn_attn_bias: -inf
   multi_pde:
+    # Data can be downloaded using: https://github.com/functoreality/pdefoundry-2/blob/main/download/pdefoundry2_small_data.sh
     train:
       dcr_base: dedalus_v5.1_DiffConvecReac2D_hom_cU1_k1e-03_0.01_seed2
       dcr_disk: dedalus_v5.1_DiffConvecReac2D_hom_disk_cU1_k1e-03_0.01_seed1

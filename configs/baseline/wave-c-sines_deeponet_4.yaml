@@ -6,6 +6,7 @@ data:
     train: 4
   single_pde:
     param_name: rigno_wave
+    # Data can be downloaded at: https://zenodo.org/records/14765453/files/Wave-C-Sines.nc
     train: [100]
 train:
   total_batch_size: 2

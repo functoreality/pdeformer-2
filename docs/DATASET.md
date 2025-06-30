@@ -1,9 +1,10 @@
 # Dataset Files
 
-## Pretraining
+The datasets generated for PDEformer-2 as well as the corresponding generation code can be obtained at [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2).
+The two public datasets used in the paper are [PDEgym Wave-Gauss](https://huggingface.co/datasets/camlab-ethz/Wave-Gauss)
+and [RIGNO Wave-C-Sines](https://zenodo.org/records/14765453/files/Wave-C-Sines.nc).
 
-We are planning to release our pretraining dataset.
-However, as the dataset is large (about 40TB), it would not be that direct, and may take some time for us.
+## Pretraining
 
 Here is a description of the PDE forms used in our dataset:
 
