@@ -403,13 +403,10 @@ class PDEGymIncompNSInputDataset(CartesianGridInputFileDataset):
     def __init__(self, config: DictConfig, pde_param: str) -> None:
         super().__init__(config, pde_param)
 
-        self.ic_only = pde_param.endswith("-ic")
-        if self.ic_only:
-            pde_param = pde_param[:-3]
-
-        if pde_param.lower() in ["gauss", "gaussian", "ns-gauss", "ns_gauss"]:
+        data_type = pde_param.lower()
+        if data_type in ["gauss", "gaussian", "ns-gauss", "ns_gauss"]:
             filepath = os.path.join(config.data.path, "NS-Gauss.nc")
-        elif pde_param.lower() in ["sin", "sine", "sines", "ns-sine", "ns_sines",
+        elif data_type in ["sin", "sine", "sines", "ns-sine", "ns_sines",
                                    "ns_sine", "ns_sines"]:
             filepath = os.path.join(config.data.path, "NS-Sines.nc")
         else:
@@ -421,10 +418,7 @@ class PDEGymIncompNSInputDataset(CartesianGridInputFileDataset):
         self.dataset_size = self.nc_file["sample"].size
 
         # spatio-temporal coordinates
-        if self.ic_only:
-            t_coord = 0.
-        else:
-            t_coord = np.linspace(0, 1, self.nc_file["time"].size)[1:]
+        t_coord = np.linspace(0, 1, self.nc_file["time"].size)[1:]
         x_coord = np.linspace(0, 1, self.nc_file["x"].size + 1)[:-1]
         y_coord = np.linspace(0, 1, self.nc_file["y"].size + 1)[:-1]
 
@@ -441,12 +435,8 @@ class PDEGymIncompNSInputDataset(CartesianGridInputFileDataset):
         # [n_t, n_vars, n_x, n_y] -> [n_t, n_x, n_y, n_vars=2]
         u_label = np.transpose(u_label, (0, 2, 3, 1))
         input_field = u_label[0]  # initial condition, [n_x, n_y, n_fields=2]
-        if self.ic_only:
-            # [n_t, n_x, n_y, n_vars] -> [1, n_x, n_y, 1, n_vars]
-            u_label = np.expand_dims(u_label[:1], axis=-2)
-        else:
-            # [n_t, n_x, n_y, n_vars] -> [n_t - 1, n_x, n_y, 1, n_vars]
-            u_label = np.expand_dims(u_label[1:], axis=-2)
+        # [n_t, n_x, n_y, n_vars] -> [n_t - 1, n_x, n_y, 1, n_vars]
+        u_label = np.expand_dims(u_label[1:], axis=-2)
         return input_field, EMPTY_SCALAR, self.txyz_coord, u_label
 
     @staticmethod
@@ -514,9 +504,21 @@ class PDEGymIncompNSInitCondInputDataset(PDEGymIncompNSInputDataset):
     """
 
     def __init__(self, config: DictConfig, pde_param: str) -> None:
-        if not pde_param.endswith("-ic"):
-            pde_param += "-ic"
         super().__init__(config, pde_param)
+        # override t_coord
+        x_coord = np.linspace(0, 1, self.nc_file["x"].size + 1)[:-1]
+        y_coord = np.linspace(0, 1, self.nc_file["y"].size + 1)[:-1]
+        self.txyz_coord = self._gen_coords(0., x_coord, y_coord)
+
+    def __getitem__(self, idx_pde: int) -> Tuple[NDArray[float]]:
+        # Shape is [n_vars=2, n_x, n_y].
+        u_label = self.nc_file["velocity"][idx_pde, 0, 0:2, :, :]
+        # [n_vars, n_x, n_y] -> [n_x, n_y, n_vars=2]
+        u_label = np.transpose(u_label, (1, 2, 0))
+        input_field = u_label  # initial condition, [n_x, n_y, n_fields=2]
+        # [n_x, n_y, n_vars] -> [1, n_x, n_y, 1, n_vars]
+        u_label = np.expand_dims(u_label, axis=(0, 3))
+        return input_field, EMPTY_SCALAR, self.txyz_coord, u_label
 
     @staticmethod
     def _gen_pde_nodes(x_coord: NDArray[float],
@@ -530,6 +532,34 @@ class PDEGymIncompNSInitCondInputDataset(PDEGymIncompNSInputDataset):
         pde.set_ic(u_, np.nan, x=x_ext, y=y_ext)
         pde.set_ic(v_, np.nan, x=x_ext, y=y_ext)
         return pde
+
+
+@register_pde_type("pdegym_ins_single_t")
+class PDEGymIncompNSOneStepInputDataset(PDEGymIncompNSInputDataset):
+    r"""
+    Load 2D Incompressible NS Equation (Velocity Form) dataset of PDEGym,
+    but only learning to fit its final state.
+    """
+
+    def __init__(self, config: DictConfig, pde_param: str) -> None:
+        data_type, t_step = pde_param.split("@")
+        super().__init__(config, data_type)
+        # override t_coord
+        self.t_step = int(t_step)
+        t_coord = np.linspace(0, 1, self.nc_file["time"].size)[self.t_step]
+        x_coord = np.linspace(0, 1, self.nc_file["x"].size + 1)[:-1]
+        y_coord = np.linspace(0, 1, self.nc_file["y"].size + 1)[:-1]
+        self.txyz_coord = self._gen_coords(t_coord, x_coord, y_coord)
+
+    def __getitem__(self, idx_pde: int) -> Tuple[NDArray[float]]:
+        # Shape is [n_t, n_vars=2, n_x, n_y]
+        u_label = self.nc_file["velocity"][idx_pde, :, 0:2, :, :]
+        # [n_t, n_vars, n_x, n_y] -> [n_t, n_x, n_y, n_vars=2]
+        u_label = np.transpose(u_label, (0, 2, 3, 1))
+        input_field = u_label[0]  # initial condition, [n_x, n_y, n_fields=2]
+        # [n_t, n_x, n_y, n_vars] -> [1, n_x, n_y, 1, n_vars]
+        u_label = np.expand_dims(u_label[self.t_step], axis=(0, 3))
+        return input_field, EMPTY_SCALAR, self.txyz_coord, u_label
 
 
 @register_pde_type("pdegym_ace")

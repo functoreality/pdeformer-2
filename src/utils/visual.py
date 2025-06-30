@@ -681,7 +681,7 @@ def video_2d(label: NDArray[float],
             raise ValueError
         x_coord = np.linspace(0, 1, label.shape[1] + 1)[:-1]
         y_coord = np.linspace(0, 1, label.shape[2] + 1)[:-1]
-        coords = np.stack(np.meshgrid(x_coord, y_coord, indexing="ij"))
+        coords = np.stack(np.meshgrid(x_coord, y_coord, indexing="ij"), axis=-1)
 
     # titles
     title = wrap_long_latex(title)
