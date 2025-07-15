@@ -128,9 +128,10 @@ class Fake2DInputDataset(CartesianGridInputFileDataset):
 
     def __init__(self, config: DictConfig, pde_param: Any) -> None:
         super().__init__(config, pde_param)
+        n_t = pde_param
 
         # spatio-temporal coordinates
-        t_coord = np.linspace(0, 1, 101)[1:]
+        t_coord = np.linspace(0, 1, n_t + 1)[1:]
         x_coord = np.linspace(0, 1, 129)[:-1]
         y_coord = np.linspace(0, 1, 129)[:-1]
 
@@ -140,7 +141,7 @@ class Fake2DInputDataset(CartesianGridInputFileDataset):
         self.txyz_coord = self._gen_coords(t_coord, x_coord, y_coord)
 
         # fake dataset
-        self.u_label = np.random.randn(100, 128, 128, 1, 1)
+        self.u_label = np.random.randn(n_t, 128, 128, 1, 1)
 
     def __getitem__(self, idx_pde: int) -> Tuple[NDArray[float]]:
         input_field = self.u_label[0, ..., 0]  # [n_x, n_y, 1]
@@ -156,6 +157,48 @@ class Fake2DInputDataset(CartesianGridInputFileDataset):
         pde.set_ic(u_, np.nan, x=x_ext, y=y_ext)
 
         pde.sum_eq0(u_.dt, -(u_.dx.dx + u_.dy.dy), u_)
+        return pde
+
+
+@register_pde_type("mv_fake")
+class MultiVarFake2DInputDataset(CartesianGridInputFileDataset):
+    r"""Fake dataset to validate grammar."""
+    var_latex = "uvwabcdef"
+    dataset_size: int = 10**6
+    pde_latex = ""
+    coef_dict = {}
+
+    def __init__(self, config: DictConfig, pde_param: Any) -> None:
+        super().__init__(config, pde_param)
+        self.n_vars = pde_param
+
+        # spatio-temporal coordinates
+        t_coord = 0.
+        x_coord = np.linspace(0, 1, 129)[:-1]
+        y_coord = np.linspace(0, 1, 129)[:-1]
+
+        # pde_dag
+        pde = self._gen_pde_nodes(x_coord, y_coord, self.n_vars)
+        self.pde_dag = pde.gen_dag(config)
+        self.txyz_coord = self._gen_coords(t_coord, x_coord, y_coord)
+
+        # fake dataset
+        self.u_label = np.random.randn(1, 128, 128, 1, self.n_vars)
+
+    def __getitem__(self, idx_pde: int) -> Tuple[NDArray[float]]:
+        input_field = self.u_label[0, :, :, 0]  # [n_x, n_y, n_vars]
+        return input_field, EMPTY_SCALAR, self.txyz_coord, self.u_label
+
+    @staticmethod
+    def _gen_pde_nodes(x_coord: NDArray[float],
+                       y_coord: NDArray[float],
+                       n_vars: int) -> PDENodesCollector:
+        r"""Generate nodes of a PDE for DAG construction"""
+        pde = PDENodesCollector()
+        x_ext, y_ext = np.meshgrid(x_coord, y_coord, indexing="ij")
+        for _ in range(n_vars):
+            u_ = pde.new_uf()
+            pde.set_ic(u_, np.nan, x=x_ext, y=y_ext)
         return pde
 
 

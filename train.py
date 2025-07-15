@@ -424,6 +424,8 @@ if __name__ == "__main__":
         context.set_context(mode=context.GRAPH_MODE)
     else:
         context.set_context(mode=context.PYNATIVE_MODE)
+    if ms.__version__ >= "2.3":
+        context.set_context(jit_config={"jit_level": "O2"})
     use_ascend = context.get_context(attr_key="device_target") == "Ascend"
     use_fp16 = use_ascend
     # context.set_context(max_call_depth=10000)  # for larger models

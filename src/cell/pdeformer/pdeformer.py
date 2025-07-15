@@ -20,16 +20,19 @@ class PDEEncoder(nn.Cell):
 
     Args:
         config_model (Dict): Configurations.
-        compute_dtype (mstype.Float): The computation type of the layer. Default: ``mstype.float16``.
+        compute_dtype (mstype.Float): The computation type of the layer.
+            Default: ``mstype.float16``.
 
     Inputs:
         - **node_type** (Tensor) - The type of each node, shape :math:`(n\_graph, n\_node, 1)`.
-        - **node_scalar** (Tensor) - The scalar value of each node, shape :math:`(n\_graph, num\_scalar, 1)`.
+        - **node_scalar** (Tensor) - The scalar value of each node, shape
+          :math:`(n\_graph, num\_scalar, 1)`.
         - **node_function** (Tensor) - The function value of each node,
           shape :math:`(n\_graph, num\_function, num\_points\_function, 5)`.
         - **in_degree** (Tensor) - The in-degree of each node, shape :math:`(n\_graph, n\_node)`.
         - **out_degree** (Tensor) - The out-degree of each node, shape :math:`(n\_graph, n\_node)`.
-        - **attn_bias** (Tensor) - The attention bias of the graph, shape :math:`(n\_graph, n\_node, n\_node)`.
+        - **attn_bias** (Tensor) - The attention bias of the graph, shape
+          :math:`(n\_graph, n\_node, n\_node)`.
         - **spatial_pos** (Tensor) - The spatial position from each node to each other node,
           shape :math:`(n\_graph, n\_node, n\_node)`.
 
@@ -78,8 +81,9 @@ class PDEEncoder(nn.Cell):
         # deepset, conv2d: [n_graph*num_function, num_branches*embed_dim]
         # patched: [n_graph*num_function*num_branches, embed_dim]
         node_function_feature = self.function_encoder(node_function)
+        # Shape is [n_graph, num_function*num_branches, embed_dim].
         node_function_feature = node_function_feature.reshape(
-            n_graph, -1, node_scalar_feature.shape[-1])  # [n_graph, num_function*num_branches, embed_dim]
+            n_graph, -1, node_scalar_feature.shape[-1])
 
         # Shape is [n_graph, num_scalar+num_function*num_branches, embed_dim].
         node_input_feature = ops.cat((node_scalar_feature, node_function_feature), axis=1)
@@ -123,7 +127,8 @@ class PDEformer(nn.Cell):
           shape :math:`(n\_graph, num\_points, 4)`.
 
     Outputs:
-        The solution of the PDE equation at each point, shape :math:`(n\_graph, num\_points, dim\_out)`.
+        The solution of the PDE equation at each point, shape
+            :math:`(n\_graph, num\_points, dim\_out)`.
 
     Supported Platforms:
         ``Ascend`` ``GPU``
