@@ -134,8 +134,8 @@ PDEformer-2 通过预训练掌握了多种不同类型 PDE 的正问题求解能
 
 * (1) 从 [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) 下载经过预训练的 PDEformer-2 权重 `model-M.ckpt`；
 * (2) 下载 PDEBench 数据集中的 [2D_rdb_NA_NA.h5](https://darus.uni-stuttgart.de/api/access/datafile/133021)；
-* (3) 调整配置文件 [configs/finetune/pdebench-swe-rdb_model-M.yaml](configs/finetune/pdebench-swe-rdb_model-M.yaml)，指定下载所得的的模型权重文件路径（`model.ckpt` 参数）与数据集所在的文件夹（`data.path` 参数）：
-在这个配置文件中，我们需要指定数据集的文件路径和文件名，以及预训练好的模型权重路径 ：
+* (3) 修改配置文件 [configs/finetune/pdebench-swe-rdb_model-M.yaml](configs/finetune/pdebench-swe-rdb_model-M.yaml)，
+	指定下载所得的的模型权重文件路径（`model.load_ckpt` 参数）与数据集所在的文件夹（`data.path` 参数）：
 
 ```yaml
 # ...
@@ -150,7 +150,7 @@ data:
   # ...
   single_pde:
     param_name: rdb  # 方程数据集类型（有时还有参数名），这里为径向溃坝（RDB）数据
-    train: [1]  # 方程参数值。当前所用的 RDB 数据集不包含参数，因此随意设置即可
+    train: [1]  # 方程参数值列表。当前所用的 RDB 数据集不包含参数，因此随意设置即可
 # ...
 ```
 

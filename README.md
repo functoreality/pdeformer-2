@@ -101,3 +101,70 @@ u_pred = infer_plot_2d(model, pde_dag, x_plot, y_plot)
 ```
 
 For more examples, please refer to the interactive notebook [PDEformer_inference.ipynb](PDEformer_inference.ipynb).
+
+### finetuning
+
+PDEformer-2 has acquired the capability to solve forward problems for various types of PDEs through pretraining.
+The shared knowledge underlying these diverse PDE-solving tasks provides a solid foundation for PDEformer-2 to quickly adapt to solving new equations.
+We can finetune the pretrained PDEformer-2 model using standard datasets to evaluate its ability to adapt to new scenarios and tasks.
+Here, we take the 2D shallow-water equation (radial dam break) data from the PDEBench dataset as an example, finetuning the model with just a single sample and testing its prediction accuracy on 100 test samples.
+The finetuning process follows these steps:
+
+* (1) Download the pretrained PDEformer-2 weights `model-M.ckpt` from [Gitee AI](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt);
+* (2) Download the data file [2D_rdb_NA_NA.h5](https://darus.uni-stuttgart.de/api/access/datafile/133021) from PDEBench;
+* (3) Modify the configuration file [configs/finetune/pdebench-swe-rdb_model-M.yaml](configs/finetune/pdebench-swe-rdb_model-M.yaml)
+	to specify the paths for the downloaded model weights (`model.load_ckpt` entry) and the dataset folder (`data.path` entry):
+
+```yaml
+# ...
+model:
+  # ...
+  load_ckpt: path/to/your/downloaded/model-M.ckpt  # path to the pretrained model weights
+data:
+  path: ../data_download  # directory of the dataset
+  num_samples_per_file:
+    train: 1  # training dataset samples
+    test: 100  # test dataset samples
+  # ...
+  single_pde:
+    param_name: rdb  # PDE dataset type, here radial-dam-break
+    train: [1]  # list of PDE parameters. RDB has no parameter, so anything works.
+# ...
+```
+
+* (4) After completing the modifications to the configuration file, launch the single-NPU finetuning task by running the following command:
+
+```bash
+config_path=configs/finetune/pdebench-swe-rdb_model-M.yaml
+python train.py -c $config_path --no_distributed --device_id 0
+```
+
+Users can also finetune the model with other datasets.
+For example, if using the INS-Tracer equation data mentioned in the paper, the data file to download in step (2) becomes:
+[dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0.hdf5](https://data-download.obs.cn-northeast-227.dlaicc.com/dedalus_v5.1/Baseline2D/dedalus_v5.1_Baseline2D_INSTracer_icA_noP_db1_nu0.001D0.01_seed0.hdf5).
+(For more details on downloading data files, please refer to the [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2) repository.)
+Meanwhile, the configuration file to modify in step (3) is [configs/finetune/ins-tracer_model-M.yaml](configs/finetune/ins-tracer_model-M.yaml).
+The command for step (4) using 8 NPUs for finetuning is as follows:
+
+```bash
+# path to the config file
+config_path=configs/finetune/ins-tracer_model-M.yaml
+
+# train model with 8 Ascend NPUs
+mpirun -n 8 --output-filename log_output --merge-stderr-to-stdout \
+    python train.py --config_file_path $config_path
+```
+
+### pretraining
+
+The dataset used for PDEformer-2 pretraining and the corresponding data generation code can be obtained from [PDEFoundry-2](https://github.com/functoreality/pdefoundry-2).
+Due to the excessively large scale of the full pretraining dataset, the pretraining process demonstrated here uses only a small subset of the data.
+The steps are as follows:
+
+* (1) Download the small-scale pretraining dataset using [this Bash script](https://github.com/functoreality/pdefoundry-2/blob/main/download/pdefoundry2_small_data.sh).
+* (2) Modify the configuration file [configs/pretrain/model-L_small-data.yaml](configs/pretrain/model-L_small-data.yaml) to specify the dataset folder (`data.path` entry).
+* (3) Launch the 8-NPU parallel pretraining by running the following command:
+
+```bash
+bash scripts/train_distributed.sh
+```
