@@ -40,7 +40,7 @@ Taking the (single component) advection equation $u_t+(cu)_x+u_y=0$, $u(0,r)=g(r
 As shown in the figure, PDEformer-2 first formulates the symbolic expression of the PDE as a computational graph, and makes use of a scalar encoder and a function encoder to embed the numeric information of the PDE into the node features of the computational graph.
 Then, PDEformer-2 encodes this computational graph using a graph Transformer, and decodes the resulting latent vectors using an implicit neural representation (INR) to obtain the predicted values of each solution component of PDE at specific spatio-temporal coordinates.
 A more detailed interpretation of the working principle of the model can be found in the introduction of [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/master/MindFlow/applications/pdeformer1d).
- 
+
 In terms of the complex domain shapes and boundary locations that may appear in two-dimensional equations, PDEformer-2 represents them as signed distance functions (SDFs), and embeds this information into the computational graph using the function encoder.
 The example shown in the following figure demonstrates the way of using computational graphs to represent Dirichlet boundary conditions on a square domain:
 
@@ -167,4 +167,20 @@ The steps are as follows:
 
 ```bash
 bash scripts/train_distributed.sh
+```
+
+## Citation
+
+If you find this work helpful for you, please kindly consider citing our paper:
+
+```bibtex
+@misc{pdeformer2,
+      title={PDEformer-2: A Versatile Foundation Model for Two-Dimensional Partial Differential Equations},
+      author={Zhanhong Ye and Zining Liu and Bingyang Wu and Hongjie Jiang and Leheng Chen and Minyan Zhang and Xiang Huang and Qinghe Meng. Jingyuan Zou and Hongsheng Liu and Bin Dong},
+      year={2025},
+      eprint={2507.15409},
+      archivePrefix={arXiv},
+      primaryClass={math.NA},
+      url={https://arxiv.org/abs/2507.15409},
+}
 ```

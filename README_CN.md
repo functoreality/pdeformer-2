@@ -193,6 +193,22 @@ bash scripts/train_distributed.sh
 
 ### 反问题
 
+## 引用
+
+如果您觉得这个项目有用，欢迎引用我们的论文：
+
+```bibtex
+@misc{pdeformer2,
+      title={PDEformer-2: A Versatile Foundation Model for Two-Dimensional Partial Differential Equations},
+      author={Zhanhong Ye and Zining Liu and Bingyang Wu and Hongjie Jiang and Leheng Chen and Minyan Zhang and Xiang Huang and Qinghe Meng. Jingyuan Zou and Hongsheng Liu and Bin Dong},
+      year={2025},
+      eprint={2507.15409},
+      archivePrefix={arXiv},
+      primaryClass={math.NA},
+      url={https://arxiv.org/abs/2507.15409},
+}
+```
+
 ## 贡献者
 
 GitHub id: TODO
