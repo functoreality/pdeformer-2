@@ -150,6 +150,8 @@ class MLP(nn.Cell):
                 self.net = UniformInitDense(
                     dim_in, dim_out, has_bias=True,
                     modify_he_init=modify_he_init).to_float(compute_dtype)
+        elif num_layers == 0 and dim_in == dim_out:
+            self.net = ops.Identity()
         else:
             raise ValueError(
                 f"'num_layers' should be greater than 0, but got {num_layers}.")

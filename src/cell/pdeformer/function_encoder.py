@@ -403,14 +403,31 @@ class Patched2DConvFuncEncoder(nn.Cell):
         # [bsz, dim_hidden, n_patch_x, n_patch_y]
         x = self.patch_layer(x)
         # [bsz, dim_hidden, n_patch_x, n_patch_y] ->
-        # [bsz,n_patch_x, n_patch_y, dim_hidden]
-        x = x.permute(0, 3, 1, 2)
-        # [bsz,n_patch_x, n_patch_y, dim_hidden] ->
+        # [bsz, n_patch_x, n_patch_y, dim_hidden]
+        x = x.permute(0, 2, 3, 1)
+        # [bsz, n_patch_x, n_patch_y, dim_hidden] ->
         # [bsz * num_patches, dim_hidden]
         x = x.reshape(batch_size * self.num_patches, self.dim_hidden)
         x = self.mlp(x)
         # [bsz * num_patches, dim_hidden]
         return x
+
+
+class Patched2DConvFOnlyFuncEncoder(Patched2DConvFuncEncoder):
+    def __init__(self,
+                 dim_out: int,
+                 dim_hidden: int,
+                 num_layers: int = 3,
+                 resolution: int = 128,
+                 num_patches: int = 16,
+                 compute_dtype=mstype.float16) -> None:
+        dim_in = 1
+        super().__init__(dim_in, dim_out, dim_hidden, num_layers, resolution,
+                         num_patches, compute_dtype=compute_dtype)
+
+    def construct(self, x: Tensor) -> Tensor:
+        x = x[:, :, -1:]  # [bsz, n_pts, 5] -> [bsz, n_pts, 1]
+        return super().construct(x)
 
 
 class Conv2dFuncEncoderBase(nn.Cell):
@@ -636,6 +653,15 @@ def get_function_encoder(config_fenc: DictConfig,
     elif function_encoder_type == 'patched2dconv':
         function_encoder = Patched2DConvFuncEncoder(
             dim_in,
+            dim_out,
+            config_fenc.dim_hidden,
+            config_fenc.num_layers,
+            config_fenc.resolution,
+            config_fenc.num_branches,
+            compute_dtype=compute_dtype
+        )
+    elif function_encoder_type == 'patched2dconvf':
+        function_encoder = Patched2DConvFOnlyFuncEncoder(
             dim_out,
             config_fenc.dim_hidden,
             config_fenc.num_layers,

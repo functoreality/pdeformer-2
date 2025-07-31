@@ -66,7 +66,7 @@ The details are as follows:
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
 
-PDEformer-2-small (i.e., the S model) is provided for users requiring faster inference.
+PDEformer-2-small (i.e., the S model) is only provided for users requiring faster inference.
 We have not evaluate its performance systematically.
 
 ### Inference Example
