@@ -11,7 +11,7 @@
 
 针对以上问题，我们开发了 PDEformer 系列模型。
 这是一种可以直接处理几乎**所有 PDE 形式**的端到端解预测模型，无需对不同 PDE 进行定制化的架构设计与训练，从而明显降低了模型部署成本，提升了求解效率。
-针对一维 PDE 的 [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/master/MindFlow/applications/pdeformer1d) 模型已于之前开源。
+针对一维 PDE 的 [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/legacy-master/MindFlow/applications/pdeformer1d) 模型已于之前开源。
 当前针对二维 PDE 的 PDEformer-2 模型使用**约 40TB** 的数据集进行预训练，能够对具有不同**方程定义域、边界条件、变量个数、时间依赖情况**的二维方程进行直接推理，快速获得**任意时空位置**的预测解。
 此外，作为正问题解算子的**可微分**代理模型，PDEformer-2 还可以用于求解各类**反问题**，基于**有噪声**的**时空散点**观测，估计方程中的标量系数、源项场或波速场。
 这为模型支持包括流体、电磁等领域的众多物理现象、工程应用的研究打下了良好的基础。
@@ -35,7 +35,7 @@ $$(\Omega,\mathcal{F},c_1,\dots,s_1(r),\dots,\Gamma_1,\mathcal{B}_1,c_{11},\dots
 
 如图所示，PDEformer-2 先将方程形式表示为一个计算图，利用标量、函数编码器将方程涉及的数值信息嵌入到计算图的节点特征当中。
 接下来，PDEformer-2 通过 graph Transformer 编码这一计算图，并使用隐式神经表征（INR）对所得的隐向量进行解码，获得 PDE 的各个解分量在特定时空坐标下的预测值。
-关于模型工作原理的更详细解释可以在 [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/master/MindFlow/applications/pdeformer1d) 的介绍中找到。
+关于模型工作原理的更详细解释可以在 [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/legacy-master/MindFlow/applications/pdeformer1d) 的介绍中找到。
 
 对于二维方程中可能出现的复杂区域形状和边界位置，PDEformer-2 将其表示为符号距离函数（SDF），并使用函数编码器将这部分信息嵌入到计算图当中。
 下图所示的例子展示了使用计算图表示方形区域上 Dirichlet 边界条件的方式：
@@ -88,6 +88,14 @@ pip3 install -r pip-requirements.txt
 | PDEformer-2-base | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
+
+模型权重文件也可以通过如下命令下载：
+
+```bash
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-fast.ckpt
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-small.ckpt
+```
 
 其中 PDEformer-2-small（即 S 模型）仅为需要更快推理时间的用户提供。
 我们并未系统地评估它的性能。

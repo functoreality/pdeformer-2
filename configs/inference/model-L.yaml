@@ -39,6 +39,7 @@ model:
     shared: False
   load_ckpt: path/to/your/downloaded/model-L.ckpt
   # You can download from https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt
+  # or data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
 data:
   pde_dag:
     max_n_scalar_nodes: 80

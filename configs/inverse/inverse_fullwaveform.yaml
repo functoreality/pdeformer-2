@@ -38,6 +38,7 @@ model:
     shared: false
   load_ckpt: path/to/your/downloaded/model-L.ckpt
   # You can download from https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt
+  # or data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
 data:
   path: ../data_download  # or any path/to/your/data_download
   pde_dag:

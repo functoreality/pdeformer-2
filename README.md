@@ -12,7 +12,7 @@ However, they pose difficulties to generalize to new forms of PDE, and often enc
 
 We develop the PDEformer model series to address the above issues.
 This is a class of end-to-end solution prediction models that can directly handle almost **any form of PDE**, eliminating the need for customized architecture design and training for different PDEs, thereby significantly reducing model deployment costs and improving solution efficiency.
-The [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/master/MindFlow/applications/pdeformer1d) model developed for one-dimensional PDEs has been open-sourced previously.
+The [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/legacy-master/MindFlow/applications/pdeformer1d) model developed for one-dimensional PDEs has been open-sourced previously.
 The current PDEformer-2 model for two-dimensional PDEs, pretrained on a dataset of **approximately 40TB**, can directly handle 2D PDEs with different **computational domains, boundary conditions, number of variables, and time dependencies**, and quickly obtain predicted solutions at **any spatio-temporal location**.
 In addition, as a **differentiable** surrogate model for solving forward problems, PDEformer-2 can also be used to solve various **inverse problems**, estimating scalar coefficients, source term fields, or wave velocity fields based on **noisy** spatio-temporal **scatter** observations.
 This has laid a promising foundation for the model to support research on numerous physical phenomena and engineering applications in fields such as fluids and electromagnetics.
@@ -39,7 +39,7 @@ Taking the (single component) advection equation $u_t+(cu)_x+u_y=0$, $u(0,r)=g(r
 
 As shown in the figure, PDEformer-2 first formulates the symbolic expression of the PDE as a computational graph, and makes use of a scalar encoder and a function encoder to embed the numeric information of the PDE into the node features of the computational graph.
 Then, PDEformer-2 encodes this computational graph using a graph Transformer, and decodes the resulting latent vectors using an implicit neural representation (INR) to obtain the predicted values of each solution component of PDE at specific spatio-temporal coordinates.
-A more detailed interpretation of the working principle of the model can be found in the introduction of [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/master/MindFlow/applications/pdeformer1d).
+A more detailed interpretation of the working principle of the model can be found in the introduction of [PDEformer-1](https://gitee.com/mindspore/mindscience/blob/legacy-master/MindFlow/applications/pdeformer1d).
 
 In terms of the complex domain shapes and boundary locations that may appear in two-dimensional equations, PDEformer-2 represents them as signed distance functions (SDFs), and embeds this information into the computational graph using the function encoder.
 The example shown in the following figure demonstrates the way of using computational graphs to represent Dirichlet boundary conditions on a square domain:
@@ -65,6 +65,14 @@ The details are as follows:
 | PDEformer-2-base | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
+
+The checkpoints (model weights) can be also downloaded using the following commands:
+
+```bash
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-fast.ckpt
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-small.ckpt
+```
 
 PDEformer-2-small (i.e., the S model) is only provided for users requiring faster inference.
 We have not evaluate its performance systematically.

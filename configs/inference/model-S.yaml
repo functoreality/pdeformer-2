@@ -9,3 +9,4 @@ model:
     dim_hidden: 128
   load_ckpt: path/to/your/downloaded/model-S.ckpt
   # You can download from https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt
+  # or data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-small.ckpt
