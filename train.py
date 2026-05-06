@@ -282,8 +282,8 @@ def eval_model(epoch):
     r"""Evaluate the model with both train data and test data."""
     eval_dataset_dict(epoch, train_iter_dict, prefix="train")
     eval_error_test, l2_error_test = eval_dataset_dict(epoch, test_iter_dict, prefix="test")
-
-    return eval_error_test, l2_error_test
+    eval_error_val, l2_error_val = eval_dataset_dict(epoch, val_iter_dict, prefix="val")
+    return eval_error_test, l2_error_test, eval_error_val, l2_error_val
 
 
 def train():
@@ -294,11 +294,14 @@ def train():
         auto_mixed_precision(model, "O3")
 
     # Evaluation before training
-    eval_error_test, l2_error_test = eval_model(epoch=0)
+    eval_error_test, l2_error_test, eval_error_val, l2_error_val = eval_model(epoch=0)
+    eval_error_rec = eval_error_val["eval_error_mean"]
     eval_error_best = eval_error_test["eval_error_mean"]
+    l2_error_rec = l2_error_val["l2_error_mean"]
     l2_error_best = l2_error_test["l2_error_mean"]
     if config.train.epochs <= 0:
         record.print(f"eval_error_mean: {eval_error_best:>7f}")
+        record.print(f"best l2_error_mean: {l2_error_best:>7f}")
         return
 
     # loss function
@@ -393,13 +396,15 @@ def train():
             # save last checkpoint
             record.save_ckpt(model, "model_last.ckpt")
 
-            eval_error_test, l2_error_test = eval_model(epoch=epoch)
+            eval_error_test, l2_error_test, eval_error_val, l2_error_val = eval_model(epoch=epoch)
 
             # save best checkpoint
-            if eval_error_best > eval_error_test["eval_error_mean"]:
+            if eval_error_rec > eval_error_val["eval_error_mean"]:
+                eval_error_rec = eval_error_val["eval_error_mean"]
                 eval_error_best = eval_error_test["eval_error_mean"]
 
-            if l2_error_best > l2_error_test["l2_error_mean"]:
+            if l2_error_rec > l2_error_val["l2_error_mean"]:
+                l2_error_rec = l2_error_val["l2_error_mean"]
                 l2_error_best = l2_error_test["l2_error_mean"]
                 record.save_ckpt(model, "model_best.ckpt")
 
@@ -455,7 +460,8 @@ if __name__ == "__main__":
     # dataset; note that this may change model config options for single_pde
     # data by automatically calling 'dataset.add_model_config_(...)'
     record.print(f"Loading {config.data.type} data...")
-    (dataset_train, data_updater, train_iter_dict, test_iter_dict) = load_dataset(config)
+    (dataset_train, data_updater, train_iter_dict, test_iter_dict, val_iter_dict
+     ) = load_dataset(config)
 
     # model
     model = get_model(config, record, compute_type)

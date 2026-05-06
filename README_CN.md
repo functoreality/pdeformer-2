@@ -89,7 +89,7 @@ pip3 install -r pip-requirements.txt
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
 
-模型权重文件也可以通过如下命令下载：
+模型权重文件也可以通过如下命令（或使用浏览器直接打开网页链接）下载：
 
 ```bash
 wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt

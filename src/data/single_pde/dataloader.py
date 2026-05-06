@@ -23,7 +23,7 @@ class PDEOutputDataset(Dataset):
                  config: DictConfig,
                  input_dataset: SinglePDEInputFileDataset,
                  n_samples: int,
-                 test: bool = False,
+                 test: int = 0,
                  for_eval: bool = False) -> None:
         super().__init__()
         self.input_dataset = input_dataset
@@ -37,8 +37,10 @@ class PDEOutputDataset(Dataset):
             self.num_txyz_samp_pts = config.train.num_txyz_samp_pts
 
     def __getitem__(self, idx_pde: int) -> Tuple[NDArray]:
-        if self.test:
+        if self.test == 1:  # test set
             idx_pde = len(self.input_dataset) - 1 - idx_pde
+        elif self.test < 0:  # validation set
+            idx_pde = len(self.input_dataset) + self.test - 1 - idx_pde
         idx_pde = int(idx_pde)  # np.int64 -> int
         input_field, input_scalar, coord, u_label = self.input_dataset[idx_pde]
         return (input_field.astype(float_dtype),
@@ -245,7 +247,7 @@ def get_dataset(config: DictConfig,
                 pde_type: str,
                 pde_param: Union[float, List[float]],
                 n_samples: int,
-                test: bool,
+                test: int,
                 for_eval: bool) -> Dataset:
     r"""Obtain PDE solution dataset for the current network model."""
     # input dataset (file handling)
@@ -275,7 +277,7 @@ def gen_loader_dict(config: DictConfig,
                     n_samples: int,
                     pde_param_list: Union[List[float], List[List[float]]],
                     batch_size: int,
-                    test: bool = False) -> Dict[str, Dict[str, Tuple]]:
+                    test: int = 0) -> Dict[str, Dict[str, Tuple]]:
     r"""
     Generate a dictionary containing the dataloaders (`BatchDataset` class
     objects in MindSpore) for the training or testing datasets.
@@ -351,6 +353,8 @@ def single_pde_dataset(config: DictConfig) -> Tuple:
     """
     num_samples_train = config.data.num_samples_per_file.train
     num_samples_test = config.data.num_samples_per_file.test
+    num_samples_val = config.data.num_samples_per_file.get(
+        "validation", num_samples_test)
     train_params = config.data.single_pde.train
     test_params = config.data.single_pde.get("test", train_params)
 
@@ -388,9 +392,12 @@ def single_pde_dataset(config: DictConfig) -> Tuple:
         batch_size=config.eval.total_batch_size)
     test_loader_dict = gen_loader_dict(
         config, num_samples_test, test_params,
-        batch_size=config.eval.total_batch_size, test=True)
+        batch_size=config.eval.total_batch_size, test=1)
+    val_loader_dict = gen_loader_dict(
+        config, num_samples_val, test_params,
+        batch_size=config.eval.total_batch_size, test=-num_samples_test)
 
     def data_updater(*_):
         return  # doing nothing
-    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict)
+    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict, val_loader_dict)
     return out_tuple

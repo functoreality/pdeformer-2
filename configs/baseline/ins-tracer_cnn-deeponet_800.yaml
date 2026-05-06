@@ -12,8 +12,8 @@ data:
   type: single_pde
   num_workers: 8
   num_samples_per_file:
-    train: 900
-    test: 100
+    train: 800
+    test: 100  # validation size same as train by default
   pde_dag:
     max_n_scalar_nodes: 128
     max_n_function_nodes: 8
@@ -42,4 +42,4 @@ eval:
   total_batch_size: 8
   interval: 50
   plot_num_per_type: 0
-record_dir: exp/benchmark_data/ins_tracer/train-900/cnn_deeponet
+record_dir: exp/benchmark_data/ins_tracer/train-800/cnn_deeponet

@@ -378,6 +378,7 @@ def dynamic_multi_pde_dataset(config: DictConfig) -> Tuple:
         config.eval.total_batch_size,
         # config.data.num_workers)
         num_workers=1)
+    val_loader_dict = test_loader_dict
 
-    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict)
+    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict, val_loader_dict)
     return out_tuple

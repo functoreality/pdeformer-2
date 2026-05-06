@@ -66,7 +66,7 @@ The details are as follows:
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
 
-The checkpoints (model weights) can be also downloaded using the following commands:
+The checkpoints (model weights) can also be downloaded using the following commands (you can also open the links directly in your browser):
 
 ```bash
 wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
