@@ -7,6 +7,7 @@ import logging
 import shutil
 import csv
 from argparse import Namespace
+from typing import Optional
 
 import pickle
 import pandas as pd
@@ -14,6 +15,8 @@ from omegaconf import OmegaConf, DictConfig
 from mindspore import SummaryRecord, Tensor, save_checkpoint, nn
 
 from .visual import plot_l2_error_and_epochs
+
+RESUME_POINTER = "resume_pointer.txt"
 
 
 def create_logger(path: str = "./log.log") -> logging.Logger:
@@ -46,6 +49,22 @@ def create_logger(path: str = "./log.log") -> logging.Logger:
     return logger
 
 
+def get_resume_state_path(config: DictConfig) -> Optional[str]:
+    r"""Get training state path based on resume_state config."""
+    resume_state = config.train.get("resume_state", False)
+    if not resume_state:  # False or empty str
+        return None
+    if isinstance(resume_state, str):
+        return resume_state if os.path.exists(resume_state) else None
+    # resume_state is True, read from pointer file
+    pointer_path = os.path.join(config.record_dir, RESUME_POINTER)
+    if not os.path.exists(pointer_path):
+        return None
+    with open(pointer_path, "r") as f:
+        resume_state = f.read().strip()
+    return resume_state if os.path.exists(resume_state) else None
+
+
 class Record:
     r"""
     Record experimental results and various outputs.
@@ -76,6 +95,7 @@ class Record:
                  enable_table: bool = True,
                  inverse_problem: bool = False) -> None:
         self.enable_record = enable_record
+        self.root_dir = root_dir
         self.record_dir = os.path.join(root_dir, time.strftime('%Y-%m-%d-%H-%M-%S'))
         self.ckpt_dir = os.path.join(self.record_dir, 'ckpt')
         self.pkl_dir = os.path.join(self.record_dir, 'pkl')
@@ -211,6 +231,26 @@ class Record:
             modes = stat.S_IWUSR | stat.S_IRUSR
             with os.fdopen(os.open(file_path, flags, modes), 'wb') as f:
                 pickle.dump(data, f)
+
+    def save_training_state(self, state: dict, file_name: str) -> None:
+        r"""Save training state dict to checkpoint file."""
+        if self.enable_record:
+            file_path = os.path.join(self.ckpt_dir, file_name)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            modes = stat.S_IWUSR | stat.S_IRUSR
+            with os.fdopen(os.open(file_path, flags, modes), 'wb') as f:
+                pickle.dump(state, f)
+
+    def update_resume_pointer(self, file_name: str = "") -> None:
+        r"""Save or clear resume pointer file."""
+        if not self.enable_record:
+            return
+        pointer_path = os.path.join(self.root_dir, RESUME_POINTER)
+        if file_name:  # save mode
+            with open(pointer_path, "w") as f:
+                f.write(os.path.join(self.ckpt_dir, file_name))
+        elif os.path.exists(pointer_path):  # clear mode
+            os.remove(pointer_path)
 
     def visual(self, visual_func: callable, *args, **kwargs) -> None:
         r"""

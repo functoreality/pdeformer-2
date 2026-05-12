@@ -1,7 +1,10 @@
 r"""Train the model."""
+import os
 import time
 import argparse
 import math
+import pickle
+import random
 from typing import Dict, Any
 
 import numpy as np
@@ -15,6 +18,7 @@ from src.data import load_dataset, split_data_tuple
 from src.core import (calculate_l2_error, L2ErrorRecord, EvalErrorRecord,
                       LossFunction, get_lr, get_optimizer, DeltaWeightPenalty)
 from src.utils import load_config, init_record, AllGather, set_seed
+from src.utils.record import get_resume_state_path
 from src.utils.visual import video_2d
 from src.cell import get_model
 
@@ -286,23 +290,38 @@ def eval_model(epoch):
     return eval_error_test, l2_error_test, eval_error_val, l2_error_val
 
 
+def save_checkpoint(record, epoch, model, optimizer,
+                    eval_error_rec, eval_error_best,
+                    l2_error_rec, l2_error_best, suffix="last"):
+    r"""Save model and training state, update resume pointer."""
+    record.save_ckpt(model, f"model_{suffix}.ckpt")
+    record.save_ckpt(optimizer, f"optim_{suffix}.ckpt")
+
+    rng_state = {
+        "numpy": np.random.get_state(),
+        "random": random.getstate(),
+    }
+
+    state = {
+        "epoch": epoch,
+        "model_ckpt": f"model_{suffix}.ckpt",
+        "optim_ckpt": f"optim_{suffix}.ckpt",
+        "eval_error_rec": eval_error_rec,
+        "eval_error_best": eval_error_best,
+        "l2_error_rec": l2_error_rec,
+        "l2_error_best": l2_error_best,
+        "rng_state": rng_state,
+    }
+    record.save_training_state(state, f"training_state_{suffix}.pkl")
+    record.update_resume_pointer(file_name="training_state_last.pkl")
+
+
 def train():
     r"""Train the model."""
     # auto mixed precision
     if use_fp16:
         loss_scaler = DynamicLossScaler(1024, 2, 100)
         auto_mixed_precision(model, "O3")
-
-    # Evaluation before training
-    eval_error_test, l2_error_test, eval_error_val, l2_error_val = eval_model(epoch=0)
-    eval_error_rec = eval_error_val["eval_error_mean"]
-    eval_error_best = eval_error_test["eval_error_mean"]
-    l2_error_rec = l2_error_val["l2_error_mean"]
-    l2_error_best = l2_error_test["l2_error_mean"]
-    if config.train.epochs <= 0:
-        record.print(f"eval_error_mean: {eval_error_best:>7f}")
-        record.print(f"best l2_error_mean: {l2_error_best:>7f}")
-        return
 
     # loss function
     loss_fn = LossFunction(config.train, reduce_mean=True,
@@ -314,6 +333,40 @@ def train():
     steps_per_epoch = dataset_train.get_dataset_size()
     lr_var = get_lr(steps_per_epoch, config.train)
     optimizer = get_optimizer(lr_var, model, config.train)
+
+    resume_path = get_resume_state_path(config)
+    if resume_path:  # Resume from checkpoint if specified
+        with open(resume_path, "rb") as f:
+            state = pickle.load(f)
+        model_ckpt = os.path.join(os.path.dirname(resume_path),
+                                  state["model_ckpt"])
+        ms.load_param_into_net(model, ms.load_checkpoint(model_ckpt))
+        optim_ckpt = os.path.join(os.path.dirname(resume_path),
+                                  state["optim_ckpt"])
+        ms.load_param_into_net(optimizer, ms.load_checkpoint(optim_ckpt))
+        start_epoch = state["epoch"] + 1
+        eval_error_rec = state["eval_error_rec"]
+        eval_error_best = state["eval_error_best"]
+        l2_error_rec = state["l2_error_rec"]
+        l2_error_best = state["l2_error_best"]
+        np.random.set_state(state["rng_state"]["numpy"])
+        random.setstate(state["rng_state"]["random"])
+        record.print(f"Resumed from: {resume_path}")
+        record.print(f"Previous epoch: {state['epoch']}, "
+                     f"eval_error_best: {eval_error_best:.6f}, "
+                     f"l2_error_best: {l2_error_best:.6f}")
+    else:  # Evaluation before training
+        start_epoch = 1
+        eval_error_test, l2_error_test, eval_error_val, l2_error_val = eval_model(epoch=0)
+        eval_error_rec = eval_error_val["eval_error_mean"]
+        eval_error_best = eval_error_test["eval_error_mean"]
+        l2_error_rec = l2_error_val["l2_error_mean"]
+        l2_error_best = l2_error_test["l2_error_mean"]
+
+    if config.train.epochs <= 0:
+        record.print(f"eval_error_mean: {eval_error_best:>7f}")
+        record.print(f"best l2_error_mean: {l2_error_best:>7f}")
+        return
 
     # gradient postprocessing
     if args.distributed:
@@ -369,7 +422,7 @@ def train():
     print_interval = math.ceil(config.train.epochs / 2500)
     # eval_epochs = np.logspace(0, np.log10(config.train.epochs), 28)
     # eval_epochs = np.array(sorted(set(eval_epochs.astype(int))))  # uniquify
-    for epoch in range(1, 1 + config.train.epochs):
+    for epoch in range(start_epoch, 1 + config.train.epochs):
         model.set_train()
         loss_all = []
         if args.data_sink:
@@ -393,10 +446,12 @@ def train():
         # Evaluation
         # if epoch in eval_epochs:
         if epoch % config.eval.interval == 0 or epoch == config.train.epochs:
-            # save last checkpoint
-            record.save_ckpt(model, "model_last.ckpt")
-
             eval_error_test, l2_error_test, eval_error_val, l2_error_val = eval_model(epoch=epoch)
+
+            # save last checkpoint (with up-to-date error values)
+            save_checkpoint(record, epoch, model, optimizer,
+                            eval_error_rec, eval_error_best,
+                            l2_error_rec, l2_error_best, suffix="last")
 
             # save best checkpoint
             if eval_error_rec > eval_error_val["eval_error_mean"]:
@@ -406,8 +461,11 @@ def train():
             if l2_error_rec > l2_error_val["l2_error_mean"]:
                 l2_error_rec = l2_error_val["l2_error_mean"]
                 l2_error_best = l2_error_test["l2_error_mean"]
-                record.save_ckpt(model, "model_best.ckpt")
+                save_checkpoint(record, epoch, model, optimizer,
+                                eval_error_rec, eval_error_best,
+                                l2_error_rec, l2_error_best, suffix="best")
 
+    record.update_resume_pointer(file_name="")  # clear
     record.print(f"best eval_error_mean: {eval_error_best:>7f}")
     record.print(f"best l2_error_mean: {l2_error_best:>7f}")
     record.print("training done!")

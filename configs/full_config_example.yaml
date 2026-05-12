@@ -153,6 +153,7 @@ train:
   num_txyz_samp_pts: 8192
   lr_init: 1.e-4
   epochs: 10
+  resume_state: False
   loss:
     type: RMSE  # {MSE, RMSE, MAE, MIXED, SPECTRAL}
     sample_reduce: mean  # {mean, nanmean, sum, nansum}
