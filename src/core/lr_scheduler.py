@@ -49,7 +49,8 @@ def get_lr_list(steps_per_epoch: int,
         list: A list of learning rates corresponding to each step in the
             training process.
     """
-
+    if epochs <= 0:   # avoid error for eval-only runs
+        epochs = 1
     total_steps = epochs * steps_per_epoch
     if lr_milestones is None:
         lr_milestones = [0.6, 0.8, 1.0]

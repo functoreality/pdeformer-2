@@ -116,10 +116,11 @@ def static_multi_pde_dataset(config: DictConfig) -> Tuple:
     test_loader_dict = gen_loader_dict(
         config, num_samples_test, test_file_dict,
         batch_size=config.eval.total_batch_size, test=True)
+    val_loader_dict = test_loader_dict
 
     def data_updater(*args):
         return args  # doing nothing
-    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict)
+    out_tuple = (dataloader_train, data_updater, train_loader_dict, test_loader_dict, val_loader_dict)
     return out_tuple
 
 
