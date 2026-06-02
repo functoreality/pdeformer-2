@@ -130,3 +130,77 @@ class RIGNOWaveCInputDataset(ScatteredPointsInputFileDataset):
         boundary = pde.new_domain(np.abs(sdf), x=x_ext, y=y_ext)  # field 3
         pde.bc_sum_eq0(boundary, u_)
         return pde
+
+
+@register_pde_type("rigno_wave_noInterp")
+class RIGNOWaveCNoInterpInputDataset(ScatteredPointsInputFileDataset):
+    r"""
+    Load 2D Wave Equation dataset on a disk domain (provided by RIGNO) from the
+    NetCDF data file `Wave-C-Sines.nc`, without interpolating the initial
+    condition. Only supporting PDEformer model with (weighted) DeepSet
+    function-encoder.
+    """
+    n_vars: int = 1
+    var_latex = "u"
+    # Wave velocity c^2=4 reduced to c^2=0.01 after coordinate rescaling (xy/2, t*10).
+    pde_latex = (r"$u_{tt}-a\Delta u=0$" + "\n"
+                 r"$u|_{\partial\Omega}=0$")
+    coef_dict = {"a": 0.01}
+
+    def __init__(self, config: DictConfig, pde_param: float) -> None:
+        super().__init__(config, pde_param)
+        self.scaling = pde_param
+
+        # main netCDF data file
+        filepath = os.path.join(config.data.path, "Wave-C-Sines.nc")
+        self.nc_file = h5py.File(filepath, "r")
+        # Shape is [1500, 21, 16431, 1].
+        self.dataset_size, self.n_t_grid, n_xy, _ = self.nc_file["u"].shape
+        self.n_t_grid -= 1  # truncate first frame
+
+        # spatio-temporal coordinates
+        r_old = self.nc_file["x"][0, 0]  # [n_xy, 2]
+        r_old = (r_old + 0.5) / 2  # rescale coordinates
+        # [n_xy, 2] -> [n_t - 1, n_xy, 2]
+        xy_ext = np.repeat(r_old[np.newaxis], self.n_t_grid, axis=0)
+        t_ext = np.linspace(0, 1, self.n_t_grid + 1)[1:]  # truncate first frame
+        t_ext = t_ext[:, np.newaxis, np.newaxis]  # [n_t - 1] -> [n_t - 1, 1, 1]
+        t_ext = np.repeat(t_ext, n_xy, axis=1)  # [n_t - 1, n_xy, 1]
+        self.txyz_coord = np.concatenate(
+            [t_ext, xy_ext, np.zeros_like(t_ext)],
+            axis=-1).astype(float_dtype)  # [n_t - 1, n_xy, 4]
+
+        # pde_dag
+        pde = self._gen_pde_nodes(self.coef_dict, r_old)
+        self.pde_dag = pde.gen_dag(config)
+
+    def __getitem__(self, idx_pde: int) -> Tuple[NDArray[float]]:
+        u_label = self.nc_file["u"][idx_pde]  # [n_t, n_xy, n_vars=1]
+        # Shape is [n_xy, n_fields=1].
+        input_field = u_label[0]
+        u_label = self.scaling * u_label[1:]
+        input_field = self.scaling * input_field
+        return input_field, EMPTY_SCALAR, self.txyz_coord, u_label
+
+    @staticmethod
+    def _gen_pde_nodes(coef_dict: Dict[str, float],
+                       xy_coord: NDArray[float]) -> PDENodesCollector:
+        r"""Generate nodes of a PDE for DAG construction"""
+        pde = PDENodesCollector(dim=2)
+        x_ext = xy_coord[:, 0]
+        y_ext = xy_coord[:, 1]
+
+        # domain and variables
+        sdf = np.sqrt((x_ext - 0.5)**2 + (y_ext - 0.5)**2) - 0.5
+        domain = pde.new_domain(sdf, x=x_ext, y=y_ext)  # field 0
+        u_ = pde.new_uf(domain)
+
+        # main PDE
+        pde.set_ic(u_, np.nan, x=x_ext, y=y_ext)  # field 1
+        pde.set_ic(u_.dt, 0, x=x_ext, y=y_ext)  # field 2
+        pde.sum_eq0(u_.dt.dt, -(coef_dict["a"] * (u_.dx.dx + u_.dy.dy)))
+
+        # Dirichlet BC
+        boundary = pde.new_domain(np.abs(sdf), x=x_ext, y=y_ext)  # field 3
+        pde.bc_sum_eq0(boundary, u_)
+        return pde
