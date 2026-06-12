@@ -65,6 +65,7 @@ The details are as follows:
 | PDEformer-2-base | 82.65M | [configs/inference/model-L.yaml](configs/inference/model-L.yaml) | [model-L.ckpt](https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt) |
 | PDEformer-2-fast | 71.07M | [configs/inference/model-M.yaml](configs/inference/model-M.yaml) | [model-M.ckpt](https://ai.gitee.com/functoreality/PDEformer2-M/blob/master/model-M.ckpt) |
 | PDEformer-2-small | 27.75M | [configs/inference/model-S.yaml](configs/inference/model-S.yaml) | [model-S.ckpt](https://ai.gitee.com/functoreality/PDEformer2-S/blob/master/model-S.ckpt) |
+| PDEformer-2-base-wdfe | 84.70M | [configs/inference/model-L-WDFE.yaml](configs/inference/model-L-WDFE.yaml) | [model-L-WDFE.ckpt](data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base-wdfe.ckpt) |
 
 The checkpoints (model weights) can also be downloaded using the following commands (you can also open the links directly in your browser):
 
@@ -72,10 +73,14 @@ The checkpoints (model weights) can also be downloaded using the following comma
 wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
 wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-fast.ckpt
 wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-small.ckpt
+wget -c data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base-wdfe.ckpt
 ```
 
 PDEformer-2-small (i.e., the S model) is only provided for users requiring faster inference.
 We have not evaluate its performance systematically.
+PDEformer-2-base-wdfe employs a weighted DeepSet function encoder that supports input functions discretized on arbitrary scattered points.
+Under the same input functions discretized on 128×128 uniform grid,
+its computational cost is substantially higher than PDEformer-2-base that uses a CNN function encoder.
 
 ### Inference Example
 

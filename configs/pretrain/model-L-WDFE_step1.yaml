@@ -1,0 +1,16 @@
+# Configuration file for PDEformer-2-base-wdfe (weighted DeepSet function
+# encoder) that only appears in the supplementary material.
+# Note: a warning message about unloaded model parameters is expected.
+base_config: configs/pretrain/model-L_small-data.yaml
+model:
+  function_encoder:
+    type: weighted_deepset
+    deepset_point_fn: poly_inr
+    dim_hidden: 512
+    num_layers: 3
+  load_ckpt: path/to/your/downloaded/model-L.ckpt
+  # You can download from https://ai.gitee.com/functoreality/PDEformer2-L/blob/master/model-L.ckpt
+  # or data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base.ckpt
+train:
+  module_list: [function_encoder]  # freeze the loaded network blocks in step1
+record_dir: "exp/pretrain/small-data/model-L-WDFE/step1"

@@ -1,0 +1,11 @@
+# configuration file for PDEformer-2-base-wdfe (weighted DeepSet function
+# encoder) that only appears in the supplementary material
+base_config: configs/inference/model-L.yaml
+model:
+  function_encoder:
+    type: weighted_deepset
+    deepset_point_fn: poly_inr
+    dim_hidden: 512
+    num_layers: 3
+  load_ckpt: path/to/your/downloaded/pdeformer2-base-wdfe.ckpt
+  # You can download from data-download.obs.cn-northeast-227.dlaicc.com/checkpoints/release/pdeformer2-base-wdfe.ckpt
